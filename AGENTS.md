@@ -11,19 +11,11 @@ An MCP server that gives hackathon teams, and their agents, easy access to the g
 Background:
 - `Plans/glendale-gis-mcp-notes.md` — original research: MCP design practices, Glendale's ArcGIS inventory, caching and rate-limit reasoning. Written before the scope narrowed, so its tool ideas (street sweeping, etc.) are not all in scope.
 - `Plans/hazard-sources.md` — verified state and federal hazard endpoints, with per-layer metadata and gotchas.
+- `Plans/implementation-plan.md` — phased order of work, with "done when" criteria and open questions.
 
 ## Status
 
-Early stage — no application code yet. Hazard endpoints and city layer counts have been checked.
-
-Build order:
-1. `pyproject.toml`, package skeleton, dataset catalog
-2. `scripts/build_snapshot.py` and the first snapshot (check sizes)
-3. Snapshot loading, hazard tools and `nearest_resources`, tested offline
-4. City geocoder with cache
-5. MCP tools over stdio, tested in a real client
-6. Snapshot download from GitHub Releases
-7. Streamable HTTP transport, hosted protections, Cloud Run deploy
+Early stage — no application code yet. Hazard endpoints and city layer counts have been checked. Next: Phase 0 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -79,7 +71,7 @@ Build order:
 **Generic access**
 - `list_datasets` — the catalog: id, source agency, category, description, snapshot or live
 - `describe_dataset` — fields, meanings of coded values, record count, freshness
-- `query_dataset` — attribute and spatial queries with capped limits and optional geometry
+- `query_dataset` — attribute and spatial queries with capped limits and optional geometry. Filters are **structured** (`field`, `op`, `value`), never raw SQL, so the same query runs on the local snapshot and translates safely to a `where` clause for live datasets.
 - `geocode_address` — the city geocoder; returns possible matches with scores
 
 **Hazards at a location**
@@ -130,7 +122,10 @@ Built by `scripts/build_snapshot.py`. It:
 
 ## Tech stack
 
-- Official `mcp` SDK (FastMCP), `httpx`, `shapely` 2 (STRtree for spatial lookups), `pydantic`. SQLite (stdlib) for the disk cache.
+- Official `mcp` SDK (FastMCP), `httpx`, `shapely` 2 (STRtree for spatial lookups), `pydantic`, `platformdirs` (cache location). SQLite (stdlib) for the disk cache.
+- Dev: `pytest`, `pytest-asyncio`, `respx` (httpx mocking), `ruff`.
+- **No `pyproj`.** Distances use a local equirectangular projection centered on Glendale (error well under 1% across the city). Revisit only if accuracy needs change.
+- All tunable values (buffers, throttle limits, cache dir, User-Agent contact, host/port, API key, snapshot path) live in `core/config.py`, read from environment variables with defaults.
 - **No GDAL, GeoPandas, PostGIS or Docker.** Every dependency must install from wheels on macOS, Windows and Linux.
 - Install for teams: `uvx --from git+<repo> glendale-gis-mcp` (primary), `pip install git+<repo>` (fallback).
 - Transport: stdio by default; `--http` for streamable HTTP.
@@ -143,6 +138,7 @@ snapshot.lock.json          # points to the GitHub Release asset
 scripts/build_snapshot.py
 src/glendale_gis/
   core/                     # plain Python, no MCP imports — importable as a library
+    config.py               # env-var settings with defaults
     catalog.py              # dataset registry: id, source, url, category, field docs, snapshot/live
     snapshot.py             # download + verify, load GeoJSON, STRtree, point/nearest queries
     arcgis.py               # httpx client: allowlist, throttle, backoff, User-Agent
@@ -203,7 +199,7 @@ No source publishes rate limits for our use, so throttle on our side:
 
 - 1–2 concurrent requests per host, single-digit requests per second.
 - Exponential backoff on 429, 503, and timeouts. ArcGIS Online can return 429; FEMA is slow — use generous timeouts.
-- Send a descriptive `User-Agent` with the project name and a contact.
+- Send a descriptive `User-Agent` with the project name and a contact. Default contact: `ryan@hacker.fund` (e.g. `GlendaleGisMcp/<version> (ryan@hacker.fund)`), overridable in config.
 - Cache live results on disk (stdio servers restart often). When a fetch fails, serve stale data and mark it `stale: true`.
 - Tests must not hit live servers by default. Use recorded fixtures.
 
