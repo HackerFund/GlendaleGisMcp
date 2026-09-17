@@ -28,7 +28,7 @@ Build order:
 ## Environment
 
 - Develop on Python 3.13, virtualenv at `.venv` (`python3.13 -m venv .venv`). Activate with `source .venv/bin/activate`. Don't use an older system Python; the package needs 3.10 or later.
-- The package must support **Python 3.10+** (the MCP SDK minimum), because teams will have mixed versions. Don't use 3.11+ only features.
+- The package targets **Python 3.10+** (`requires-python = ">=3.10"`, the MCP SDK minimum), because teams will have mixed versions. Don't use 3.11+ only features (e.g. `tomllib`, `ExceptionGroup`, `typing.Self`).
 - Build, test, and lint commands are not set up yet — add them here when they are.
 
 ## Scope
@@ -62,7 +62,7 @@ Build order:
 | Neighborhood zones | 37 | Snapshot |
 | Zoning | 2,426 | Snapshot |
 | Streets | 8,070 | Snapshot |
-| Parcels | 54,300 | **Live only** — too large for the snapshot |
+| Parcels | 54,300 | **Live only** — too large for the snapshot; may be cut entirely |
 | Address geocoder (`CAD_SiteAddress_Street/GeocodeServer`) | — | **Live only**, cached |
 
 ### Out of scope
@@ -113,7 +113,7 @@ Build order:
 ## Snapshot
 
 Built by `scripts/build_snapshot.py`. It:
-- Fetches the city boundary; clips **city layers** to the boundary + ~100 m and **hazard layers** to the boundary + ~2 km (so nearest-zone distances are right near the city limit).
+- Fetches the city boundary; clips **city layers** to the boundary + a small buffer and **hazard layers** to the boundary + a wider buffer (so nearest-zone distances are right near the city limit). Both buffer distances are **config values**, not hardcoded; defaults are 100 m (city) and 2 km (hazard).
 - Queries with `outSR=4326`, pages past `maxRecordCount`, and pauses politely between requests.
 - **Preserves `OBJECTID` and `GlobalID`** unchanged, since `ref` depends on them.
 - Rounds coordinates to 6 decimal places and keeps only useful fields.
