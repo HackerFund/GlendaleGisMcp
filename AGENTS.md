@@ -10,12 +10,13 @@ An MCP server that gives hackathon teams, and their agents, easy access to the g
 
 Background:
 - `Plans/glendale-gis-mcp-notes.md` — original research: MCP design practices, Glendale's ArcGIS inventory, caching and rate-limit reasoning. Written before the scope narrowed, so its tool ideas (street sweeping, etc.) are not all in scope.
-- `Plans/hazard-sources.md` — verified state and federal hazard endpoints, with per-layer metadata and gotchas.
+- `Plans/hazard-sources.md` — verified state and federal hazard endpoints, with per-layer metadata, coded values and gotchas (includes Phase 0 findings).
+- `Plans/city-sources.md` — Glendale layer inventory, geocoder behavior, coded values and gotchas (Phase 0 findings).
 - `Plans/implementation-plan.md` — phased order of work, with "done when" criteria and open questions.
 
 ## Status
 
-Early stage — no application code yet. Hazard endpoints and city layer counts have been checked. Next: Phase 0 of `Plans/implementation-plan.md`. Update this section as phases complete.
+Early stage — no application code yet. **Phase 0 (unknowns) is complete**; findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Next: Phase 1 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -185,13 +186,17 @@ tests/fixtures/             # recorded ArcGIS responses
 
 ## ArcGIS gotchas
 
-- Coordinate systems differ by source: 3857 (city), 3310 (CAL FIRE, CGS, DWR), 4269 (FEMA). Always pass `inSR=4326` and `outSR=4326`.
+- Coordinate systems differ by source: 3857 (city), 2229 (city geocoder), 3310 (CAL FIRE, CGS, DWR), 4269 (FEMA). Always pass `inSR=4326` and `outSR=4326`.
 - `maxRecordCount` differs per service (1000–5000 seen). Read it from layer metadata; never hardcode it.
+- **Queries silently truncate at `maxRecordCount`.** Results come back with `exceededTransferLimit: true` and no error. Always check it and page with `resultOffset` + `orderByFields=OBJECTID`.
+- Hazard and city layers have **no coded-value domains** except zoning `ZONENUM` and `GENPLAN`. Field meanings are documented in `Plans/hazard-sources.md` and `Plans/city-sources.md`; mark inferred meanings as inferred in field docs.
+- Sentinel and messy values: FEMA uses `-9999` for "no value"; USGS legend strings have inconsistent spacing and field-name casing; fire station `sta_no` has a leading space; bus `Route` is a comma-separated string.
+- City layers have **no `GlobalID` and no `editingInfo`** — `ref.global_id` is null and freshness needs a fallback.
 - Hazard polygons can be huge (FHSZ zones are dissolved citywide shapes). For live queries, use point queries with `returnGeometry=false`.
 - CGS zone services on `gis.conservation.ca.gov` require a token; use the public ArcGIS Online copies.
-- The DWR dam inundation service name contains a snapshot date and will likely change. Resolve it at snapshot build time; don't hardcode it permanently.
+- The DWR dam inundation service name contains a snapshot date and will likely change. Resolve the URL at build time from ArcGIS Online item ID `5354d98898194a4ab7b96eb6c85eecae` (layer 100), with an owner/tag search as fallback.
 - For the city server, prefer FeatureServer over MapServer when both exist, but don't assume they are configured the same way.
-- Not yet checked: what the city geocoder returns (point type, score range, unit numbers).
+- **City geocoder:** it matches addresses outside Glendale (Burbank, unincorporated La Crescenta) with scores up to 100, and its `City` field isn't reliable. **Always check the point against the city boundary.** It ignores unit numbers, has no place-name search, often returns PointAddress + StreetAddress duplicates, and its `X`/`Y`/`DisplayX`/`DisplayY` attributes stay in feet (2229) even with `outSR=4326` — read coordinates from `candidate.location`. Details and proposed matching rules in `Plans/city-sources.md`.
 
 ## Being a good neighbor
 

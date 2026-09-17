@@ -6,9 +6,9 @@ Each phase ends with something runnable and tested. Phases 0–5 give a working 
 
 ---
 
-## Phase 0 — Close the remaining unknowns
+## Phase 0 — Close the remaining unknowns ✅ Done (September 16, 2026)
 
-Short scripted checks, results appended to `Plans/hazard-sources.md` (or a new `Plans/city-sources.md`).
+Short scripted checks. Results: checks 2–4 and hazard coded values in `Plans/hazard-sources.md`; checks 1, 5 and city coded values in `Plans/city-sources.md`.
 
 | Check | Why it matters |
 |---|---|
@@ -52,7 +52,7 @@ One entry per dataset: `id`, `title`, `category` (hazard / resource / reference)
 | `fema_flood_zones` | FEMA NFHL layer 28 | snapshot |
 | `dwr_dam_inundation` | DSOD inundation areas | snapshot |
 | `usgs_debris_flow` | USGS post-fire basins | snapshot |
-| `city_boundary` | `Common/Glendale_City_Boundary` | snapshot |
+| `city_boundary` | `Common/Glendale_City_Boundary/MapServer/0` | snapshot |
 | `fire_stations`, `fire_station_districts`, `police_stations`, `hospitals`, `schools`, `libraries`, `parks`, `bus_stops` | `Common/*` | snapshot |
 | `zip_codes`, `neighborhood_zones`, `zoning`, `streets` | `Common/*` | snapshot |
 | `parcels` | `Common/Zoning/FeatureServer/1` | live (may be cut) |
