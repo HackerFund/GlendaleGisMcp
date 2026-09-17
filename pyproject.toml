@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "glendale-gis-mcp"
+version = "0.1.0"
+description = "MCP server giving hackathon teams access to Glendale, CA hazard and city GIS data."
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Ryan Gates", email = "ryan@hacker.fund" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+dependencies = [
+    "mcp>=2.2,<3",
+    "httpx>=0.28,<1",
+    "shapely>=2.0,<3",
+    "pydantic>=2.12,<3",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=1.0",
+    "respx>=0.22",
+    "ruff>=0.15",
+]
+
+[project.scripts]
+glendale-gis-mcp = "glendale_gis.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/glendale_gis"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["Plans"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]

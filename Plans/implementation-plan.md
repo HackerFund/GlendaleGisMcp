@@ -23,7 +23,7 @@ Short scripted checks. Results: checks 2–4 and hazard coded values in `Plans/h
 
 ---
 
-## Phase 1 — Project skeleton
+## Phase 1 — Project skeleton ✅ Done (September 16, 2026)
 
 - `pyproject.toml` (hatchling build), `src/glendale_gis/` layout, `requires-python = ">=3.10"`.
 - Runtime dependencies: `mcp`, `httpx`, `shapely>=2`, `pydantic>=2`, `platformdirs`.
@@ -34,6 +34,14 @@ Short scripted checks. Results: checks 2–4 and hazard coded values in `Plans/h
 - Add the test and lint commands to `AGENTS.md`.
 
 **Done when:** `uv pip install -e ".[dev]"` works on 3.10 and 3.13, `pytest` runs (empty), `glendale-gis-mcp --help` prints.
+
+**Result:**
+- Installed with `pip install -e ".[dev]"` on Python 3.13; 14 tests pass; `ruff check` and `ruff format --check` are clean.
+- `glendale-gis-mcp --help` and `--version` work, and a real MCP client completed a stdio handshake (server `glendale-gis 0.1.0`, protocol `2025-11-25`, no tools yet).
+- **Python 3.10 was not run** because it isn't installed on the dev machine. Checked instead: every runtime dependency resolves to wheels for Python 3.10 on macOS arm64, Windows x64 and Linux x86_64, and ruff targets `py310`. Run the tests on a real 3.10 before release (e.g. `uv run --python 3.10 pytest` or CI).
+- No Makefile; commands are documented in `AGENTS.md`.
+- `mcp` 2.x renamed `FastMCP` to `MCPServer`, so the server uses `mcp.server.mcpserver.MCPServer`.
+- **Open question for Phase 2:** `mcp` 2.x depends on `httpx2` (pydantic's fork of httpx), so installing plain `httpx` adds a second HTTP client. `respx` only mocks plain `httpx`. Decide whether the ArcGIS client uses `httpx` + `respx` (as planned) or `httpx2` with a different mocking approach.
 
 ---
 
@@ -122,7 +130,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - `query_dataset` with **structured filters** (`field`, `op`, `value`) instead of raw SQL. The same filters run against the snapshot locally and are translated into a safe `where` clause for live datasets (parcels). This avoids SQL injection and the need to parse SQL for local data. Includes bbox or point filters, capped `limit`, `offset`, optional geometry.
 
 ### `server.py`
-- FastMCP tools wrapping `core`, with docstrings written for agents, `readOnlyHint` on every tool, and errors that suggest next steps.
+- `MCPServer` (mcp 2.x) tools wrapping `core`, with docstrings written for agents, `readOnlyHint` on every tool, and errors that suggest next steps.
 - Entry point runs stdio by default.
 
 **Done when:** the server works in MCP Inspector and one real client (Claude Desktop or Claude Code), and an agent picks the right tool for a set of sample questions ("is 123 Brand Blvd in a flood zone?", "nearest fire station to …", "what zoning is at …").

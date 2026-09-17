@@ -16,13 +16,19 @@ Background:
 
 ## Status
 
-Early stage — no application code yet. **Phase 0 (unknowns) is complete**; findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Next: Phase 1 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–1 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Next: Phase 2 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
 - Develop on Python 3.13, virtualenv at `.venv` (`python3.13 -m venv .venv`). Activate with `source .venv/bin/activate`. Don't use an older system Python; the package needs 3.10 or later.
 - The package targets **Python 3.10+** (`requires-python = ">=3.10"`, the MCP SDK minimum), because teams will have mixed versions. Don't use 3.11+ only features (e.g. `tomllib`, `ExceptionGroup`, `typing.Self`).
-- Build, test, and lint commands are not set up yet — add them here when they are.
+- Commands (run from the repo root with `.venv` active):
+  - Install for development: `pip install -e ".[dev]"`
+  - Tests: `pytest`
+  - Lint: `ruff check .`
+  - Format: `ruff format .` (`Plans/` is excluded so research notes aren't rewritten)
+  - Run the server: `glendale-gis-mcp` (stdio) or `glendale-gis-mcp --http [--host H] [--port P]`
+- All settings are `GLENDALE_GIS_<FIELD>` environment variables matching the fields in `core/config.py` (e.g. `GLENDALE_GIS_HAZARD_BUFFER_M`, `GLENDALE_GIS_CONTACT`, `GLENDALE_GIS_SNAPSHOT_PATH`). Unset or empty values keep defaults; invalid values raise `ConfigError`.
 
 ## Scope
 
@@ -123,7 +129,7 @@ Built by `scripts/build_snapshot.py`. It:
 
 ## Tech stack
 
-- Official `mcp` SDK (FastMCP), `httpx`, `shapely` 2 (STRtree for spatial lookups), `pydantic`, `platformdirs` (cache location). SQLite (stdlib) for the disk cache.
+- Official `mcp` SDK **2.x** — the high-level server class is `MCPServer` from `mcp.server.mcpserver` (it was `FastMCP` in 1.x; don't use 1.x examples), `httpx`, `shapely` 2 (STRtree for spatial lookups), `pydantic`, `platformdirs` (cache location). SQLite (stdlib) for the disk cache.
 - Dev: `pytest`, `pytest-asyncio`, `respx` (httpx mocking), `ruff`.
 - **No `pyproj`.** Distances use a local equirectangular projection centered on Glendale (error well under 1% across the city). Revisit only if accuracy needs change.
 - All tunable values (buffers, throttle limits, cache dir, User-Agent contact, host/port, API key, snapshot path) live in `core/config.py`, read from environment variables with defaults.
