@@ -45,7 +45,7 @@ Short scripted checks. Results: checks 2–4 and hazard coded values in `Plans/h
 
 ---
 
-## Phase 2 — Catalog and ArcGIS client
+## Phase 2 — Catalog and ArcGIS client ✅ Done (September 16, 2026)
 
 ### `core/catalog.py`
 
@@ -75,6 +75,13 @@ One entry per dataset: `id`, `title`, `category` (hazard / resource / reference)
 - Always sends `inSR`/`outSR=4326`.
 
 **Done when:** unit tests with `respx` cover allowlist rejection, paging, and retry/backoff.
+
+**Result:**
+- `core/catalog.py`: 21 datasets (7 hazard, 14 city including live-only parcels) with field docs, coded values (inferred ones flagged), class fields for nearest-zone grouping, resource name/address fields, disclaimers and doc links; plus the geocoder service definition.
+- `core/arcgis.py`: allowlist derived from the catalog, per-host concurrency + minimum spacing, exponential backoff with jitter (honors `Retry-After`) on 429/5xx/timeouts including ArcGIS error bodies sent with HTTP 200, GET switching to POST for long requests, no redirects, `resultOffset` paging keyed on `exceededTransferLimit` with an object-ID chunking fallback, `max_features`, and ArcGIS Online item URL resolution.
+- 66 tests pass (52 new); ruff clean.
+- **Live check (not part of the test suite):** all 21 catalog layers load, every documented field exists in the live schema, object-ID fields match (`FID` for dam inundation), and all layers support pagination. The dam item resolves to the catalog URL. A paged zoning query returned all 2,426 features with unique IDs in 1.2 s. The geocoder call through the client worked.
+- **Allowlist trade-off:** because the dam service URL changes between releases, any layer under the DWR ArcGIS Online org is allowed (read-only operations only).
 
 ---
 
@@ -152,7 +159,8 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 - `--http` flag: stateless streamable HTTP, host/port from config.
 - `/health` endpoint (reports snapshot version and load state).
-- Per-client rate limiting, request size and result limits, optional API key (off by default), CORS settings.
+- Per-client rate limiting, request size and result limits, CORS settings, `Origin` check.
+- Shared bearer secret required when binding to a non-localhost host (see AGENTS.md → Hosting → Access control).
 - Shared outbound throttle across all requests.
 - Logging without addresses or coordinates.
 - Deploy with `gcloud run deploy --source .`; snapshot downloaded at startup (or bundled at build time if cold start is too slow); min instances 1 during the event.
@@ -177,5 +185,5 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 1. **GitHub repo:** owner, name and visibility. Needed for `uvx --from git+…` and Release assets (Phase 6). There is no remote yet.
 2. **Hackathon date:** sets how much of Phases 7–8 must be done and when.
 3. **GCP project and region** for Cloud Run.
-4. **API key for the hosted instance:** open to everyone, or key shared with registered teams?
+4. ~~**API key for the hosted instance:** open to everyone, or key shared with registered teams?~~ Decided: one shared hackathon secret, required when deployed.
 5. **Parcels:** keep as live-only or cut entirely (decide by Phase 5).

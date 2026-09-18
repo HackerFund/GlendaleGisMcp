@@ -16,7 +16,7 @@ Background:
 
 ## Status
 
-**Phases 0–1 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Next: Phase 2 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–2 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Next: Phase 3 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -164,9 +164,18 @@ tests/fixtures/             # recorded ArcGIS responses
 - **Stateless** streamable HTTP, so instances are interchangeable.
 - Load the snapshot into memory at startup. Keep **min instances = 1 during the event** to avoid slow cold starts; scale to zero otherwise.
 - All config from environment variables, with local-friendly defaults (port, cache location, User-Agent contact, rate limits, API key).
-- Hosted protections: per-client rate limiting, request size and result limits, optional API key (off by default), CORS settings, `/health` endpoint.
+- Hosted protections: per-client rate limiting, request size and result limits, CORS settings, `/health` endpoint, and a capped `--max-instances` so abuse has a fixed cost ceiling.
+- **Access control: one shared hackathon secret** (`GLENDALE_GIS_API_KEY`), distributed to participants through the event channel.
+  - Required whenever `--http` binds to anything other than localhost: the server refuses to start without it. Not used for stdio or `--http` on `127.0.0.1`.
+  - Accepted **only** as `Authorization: Bearer <key>`, never in a query string. Compare with `hmac.compare_digest`. Missing or wrong key → `401` with a short message, no detail.
+  - `/health` stays unauthenticated.
+  - Store it in Secret Manager and expose it to Cloud Run as an env var. Generate with `secrets.token_urlsafe(32)`. Never commit it; example configs use a `<HACKATHON_KEY>` placeholder.
+  - Implement the check to accept a *set* of keys (comma-separated), so rotation with overlap or per-team keys later is a config change, not a code change.
+  - Rotate or remove it after the event.
+  - Plain ASGI middleware, not the SDK's OAuth path (`AuthSettings`/`TokenVerifier`): that advertises OAuth metadata and would send OAuth-capable clients into a login flow that goes nowhere. OAuth 2.1 is a later option only if teams need clients that can't send custom headers (e.g. Claude.ai/Desktop connectors); those teams use the local stdio install.
+  - Check the `Origin` header on HTTP requests (DNS-rebinding protection, required by the MCP spec).
 - Outbound throttling is shared across all users of an instance; the geocoder cache protects the city server.
-- **Never log addresses or coordinates.**
+- **Never log addresses, coordinates or the API key.**
 
 ## Design rules
 
@@ -180,11 +189,11 @@ tests/fixtures/             # recorded ArcGIS responses
 
 ## Security
 
-- **Allowlist hosts and service paths** for all queries. Never let a tool parameter supply a URL. Allowed hosts:
-  - `gismap.glendaleca.gov`, `gisapps.glendaleca.gov`
-  - `services1.arcgis.com`, `services2.arcgis.com`, `services.arcgis.com` — only the catalog's service paths
-  - `hazards.fema.gov`
-  - `earthquake.usgs.gov`
+- **Allowlist hosts and service paths** for all queries. Never let a tool parameter supply a URL. The allowlist is built from `core/catalog.py` (`check_allowed` in `core/arcgis.py`); to allow a new source, add it to the catalog — never loosen the check. What it permits:
+  - Each catalog layer URL, plus its `/query` operation
+  - The city geocoder, plus `findAddressCandidates`, `reverseGeocode` and `suggest`
+  - The dam inundation ArcGIS Online item lookup, and any FeatureServer/MapServer layer (plus `/query`) under the DWR org prefix `services.arcgis.com/aa38u6OgfNoCkTJ6/arcgis/rest/services/`, because that service URL changes between releases
+  - HTTPS only, default port, no credentials, no query string or fragment in the URL, no `..` or percent-encoded paths; redirects are not followed
 - Snapshot downloads come only from this repo's GitHub Releases, and must match the SHA-256 in `snapshot.lock.json`.
 - **Exclude `SampleWorldCities`** (Esri demo service at the Glendale server root).
 - Cap `limit` on the server side, and leave geometry out of responses unless the caller asks for it.
