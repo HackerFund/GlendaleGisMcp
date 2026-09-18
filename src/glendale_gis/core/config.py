@@ -43,6 +43,10 @@ class Settings:
     request_timeout_s: float = 30.0
     max_retries: int = 4
 
+    # Disk cache for live results. Geocoder answers change rarely; parcels change slowly.
+    geocode_cache_ttl_s: float = 30 * 24 * 3600.0
+    live_cache_ttl_s: float = 24 * 3600.0
+
     # Hosted (streamable HTTP) mode.
     http_host: str = "127.0.0.1"
     http_port: int = 8000
@@ -52,7 +56,12 @@ class Settings:
         for name in ("city_buffer_m", "hazard_buffer_m"):
             if getattr(self, name) < 0:
                 raise ConfigError(f"{name} must be >= 0")
-        for name in ("max_snapshot_mb", "request_timeout_s"):
+        for name in (
+            "max_snapshot_mb",
+            "request_timeout_s",
+            "geocode_cache_ttl_s",
+            "live_cache_ttl_s",
+        ):
             if getattr(self, name) <= 0:
                 raise ConfigError(f"{name} must be > 0")
         if self.min_request_interval_s < 0:
@@ -90,6 +99,8 @@ _FLOAT_FIELDS = {
     "max_snapshot_mb",
     "min_request_interval_s",
     "request_timeout_s",
+    "geocode_cache_ttl_s",
+    "live_cache_ttl_s",
 }
 _INT_FIELDS = {"max_concurrency_per_host", "max_retries", "http_port"}
 _PATH_FIELDS = {"cache_dir", "snapshot_path"}

@@ -185,3 +185,174 @@ class ToolError(_Model):
     error: str
     suggestions: list[str] = Field(default_factory=list)
     candidates: list[dict[str, Any]] | None = None
+
+
+class ActionableError(Exception):
+    """An error the caller can fix. Tools turn it into a ``ToolError`` result."""
+
+    def __init__(
+        self,
+        error: str,
+        suggestions: list[str] | None = None,
+        candidates: list[dict[str, Any]] | None = None,
+    ) -> None:
+        super().__init__(error)
+        self.error = error
+        self.suggestions = suggestions or []
+        self.candidates = candidates
+
+    def to_model(self) -> ToolError:
+        return ToolError(error=self.error, suggestions=self.suggestions, candidates=self.candidates)
+
+
+# --------------------------------------------------------------------------------------------
+# Geocoding
+# --------------------------------------------------------------------------------------------
+
+
+class GeocodeCandidate(_Model):
+    address: str
+    score: float = Field(description="Geocoder match score (0-100)")
+    match_type: str = Field(
+        description=(
+            "PointAddress (a site address), StreetAddress (interpolated along the street), "
+            "StreetInt (intersection) or StreetName (street midpoint, no house number)"
+        )
+    )
+    lat: float
+    lon: float
+    in_city: bool
+
+
+class GeocodeResult(_Model):
+    status: Literal["matched", "ambiguous"]
+    location: ResolvedLocation | None = Field(
+        default=None, description="The confident match; null when ambiguous"
+    )
+    candidates: list[GeocodeCandidate] = Field(
+        description="Matches inside Glendale, best first (duplicates removed)"
+    )
+    notes: list[str] = Field(default_factory=list)
+    meta: Meta = Field(alias="_meta", serialization_alias="_meta")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+# --------------------------------------------------------------------------------------------
+# Generic queries
+# --------------------------------------------------------------------------------------------
+
+FilterOp = Literal[
+    "eq", "ne", "lt", "lte", "gt", "gte", "in", "contains", "starts_with", "is_null", "not_null"
+]
+Scalar = str | int | float | bool
+
+
+class Filter(_Model):
+    """One attribute condition. Text comparisons ignore case and surrounding spaces."""
+
+    field: str = Field(min_length=1, max_length=64)
+    op: FilterOp = "eq"
+    value: Scalar | list[Scalar] | None = Field(
+        default=None, description="A list for 'in'; omit for 'is_null' and 'not_null'"
+    )
+
+
+class Near(_Model):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    radius_m: float = Field(
+        default=0, ge=0, le=5000, description="0 finds features that contain the point"
+    )
+
+
+class QueryFeature(Feature):
+    distance_m: int | None = Field(default=None, description="Set when 'near' is used")
+    geometry: dict[str, Any] | None = Field(
+        default=None, description="GeoJSON geometry (lon/lat), only when requested"
+    )
+    geometry_omitted: str | None = Field(
+        default=None, description="Why a requested geometry was left out"
+    )
+
+
+class QueryResult(_Model):
+    dataset: str
+    total: int = Field(description="Features matching the query")
+    offset: int
+    returned: int
+    next_offset: int | None = Field(description="Offset for the next page; null on the last")
+    features: list[QueryFeature]
+    notes: list[str] = Field(default_factory=list)
+    meta: Meta = Field(alias="_meta", serialization_alias="_meta")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+# --------------------------------------------------------------------------------------------
+# Catalog
+# --------------------------------------------------------------------------------------------
+
+
+class DatasetSummary(_Model):
+    id: str
+    title: str
+    category: Literal["hazard", "resource", "reference"]
+    source_agency: str
+    access: Literal["snapshot", "live"]
+    geometry: str
+    feature_count: int | None = Field(description="Features in the snapshot; null for live data")
+    available: bool
+    description: str
+
+
+class DatasetList(_Model):
+    datasets: list[DatasetSummary]
+    snapshot_built_at: str | None
+    notes: list[str] = Field(default_factory=list)
+
+
+class FieldInfo(_Model):
+    name: str
+    type: str | None = Field(default=None, description="ArcGIS field type")
+    alias: str | None = None
+    description: str | None = None
+    values: dict[str, str] | None = Field(default=None, description="Meanings of coded values")
+    inferred: bool = Field(
+        default=False, description="True when the meaning isn't stated by an official source"
+    )
+
+
+class DatasetDescription(_Model):
+    id: str
+    title: str
+    category: str
+    source_agency: str
+    access: Literal["snapshot", "live"]
+    geometry: str
+    description: str
+    layer_url: str
+    fields: list[FieldInfo]
+    feature_count: int | None
+    fetched_at: str | None = Field(description="When the snapshot copy was fetched")
+    source_last_edit: str | None = Field(description="When the source says it last changed")
+    clip: dict[str, Any] | None = Field(
+        description="Area the snapshot copy covers: the city plus this buffer"
+    )
+    class_field: str | None
+    unzoned_classes: list[str]
+    id_field: str
+    disclaimer: str
+    docs: list[str]
+    available: bool
+    unavailable_reason: str | None = None
+    meta: Meta = Field(alias="_meta", serialization_alias="_meta")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class Guide(_Model):
+    topic: str
+    title: str
+    resource_uri: str = Field(description="The same content as an MCP resource")
+    content: str = Field(description="Markdown")

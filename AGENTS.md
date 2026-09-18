@@ -18,7 +18,7 @@ Background:
 
 ## Status
 
-**Phases 0–4 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Next: Phase 5 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–5 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Phase 5 added the geocoder (`core/geocode.py`), the disk cache (`core/cache.py`), structured queries (`core/query.py`), `core/datasets.py`, and all 11 MCP tools in `server.py`. Next: Phase 6 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -83,6 +83,7 @@ Background:
 - `describe_dataset` — fields, meanings of coded values, record count, freshness
 - `query_dataset` — attribute and spatial queries with capped limits and optional geometry. Filters are **structured** (`field`, `op`, `value`), never raw SQL, so the same query runs on the local snapshot and translates safely to a `where` clause for live datasets.
 - `geocode_address` — the city geocoder; returns possible matches with scores
+- `read_guide(topic)` — the guides (`about`, `datasets`, `real_time_sources`, `snapshot_data`) as Markdown; the same content as the resources below
 
 **Hazards at a location**
 - `wildfire_zone`, `flood_zone`, `seismic_zones` (fault, liquefaction, landslide), `dam_inundation`, `debris_flow`
@@ -90,6 +91,14 @@ Background:
 
 **Resources near a location**
 - `nearest_resources(location, kinds, limit)` — fire stations, police, hospitals, schools, libraries, parks, bus stops. Distances are straight-line meters, not travel distance, and only cover resources inside Glendale; docstrings must say both.
+
+**Resources** (read-only documents clients can load)
+- `glendale-gis://about`: the start page. What the server does and doesn't do, which tool answers which question, a table of every tool (built from the registered tools, so it can't drift), locations, reading results, and what's not included. Built by `server.overview_markdown`.
+- `glendale-gis://datasets`: every dataset grouped by kind, with description, source, feature count and last-edit date. The template `glendale-gis://datasets/{dataset_id}` gives one dataset's facts and a field table with meanings and coded values. Both are generated from the catalog and manifest (`core/datasets.py`).
+- `glendale-gis://docs/real-time-sources` and `glendale-gis://docs/snapshot-data`: the Markdown guides in `docs/`, packaged into the wheel as `glendale_gis/docs` (`core/docs.py` reads the packaged copy, or `docs/` in a source checkout). Edit `docs/` only; there is one copy of each.
+- `glendale-gis://snapshot/manifest`: the loaded snapshot's `manifest.json`.
+- **Every guide is also a tool (`read_guide`).** Resources are controlled by the client: Claude Desktop lists them but never reads them unless a person attaches one, and it doesn't list resource templates. So the model can only reach guidance through tools. `read_guide` and the resources share one content function; `describe_dataset` covers the per-dataset pages. The server `INSTRUCTIONS` and tool docstrings tell the model to call `read_guide(...)`, never to open a repo path.
+- No MCP prompts yet.
 
 ### Shared behavior
 
@@ -159,6 +168,9 @@ src/glendale_gis/
     arcgis.py               # httpx client: allowlist, throttle, backoff, User-Agent
     geo.py                  # local-meter projection, buffers, distances, Esri JSON -> shapely
     geocode.py              # city geocoder + cache
+    query.py                # structured filters: in memory for the snapshot, safe where clauses for live data
+    datasets.py             # list_datasets, describe_dataset
+    docs.py                 # reads the packaged user docs served as resources
     cache.py                # cache interface (SQLite locally)
     models.py               # Pydantic outputs, Location input, _meta envelope
   server.py                 # MCP tools; thin wrapper over core
@@ -184,7 +196,7 @@ tests/fixtures/             # recorded ArcGIS responses
   - Plain ASGI middleware, not the SDK's OAuth path (`AuthSettings`/`TokenVerifier`): that advertises OAuth metadata and would send OAuth-capable clients into a login flow that goes nowhere. OAuth 2.1 is a later option only if teams need clients that can't send custom headers (e.g. Claude.ai/Desktop connectors); those teams use the local stdio install.
   - Check the `Origin` header on HTTP requests (DNS-rebinding protection, required by the MCP spec).
 - Outbound throttling is shared across all users of an instance; the geocoder cache protects the city server.
-- **Never log addresses, coordinates or the API key.**
+- **Never log addresses, coordinates or the API key.** `httpx` logs every request URL at INFO, and geocoder URLs contain the address, so `server.quiet_http_logs()` keeps it at WARNING. A test fails if an address reaches the logs.
 
 ## Design rules
 

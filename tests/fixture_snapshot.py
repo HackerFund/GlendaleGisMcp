@@ -74,6 +74,16 @@ LAYERS = {
         (2, point(-118.24, 34.16), {"NAME": "Fire Station 22", "ADDRESS": None}),
         (3, point(-118.25, 34.16), {"NAME": " Fire  Station 23 ", "sta_no": " 23"}),
     ),
+    "bus_stops": features(
+        "bus_stops",
+        (
+            1,
+            point(-118.2500, 34.1605),
+            {"Stop_Numbe": 354.0, "Route": "3,7", "On_Street": "NB Brand"},
+        ),
+        (2, point(-118.2500, 34.1650), {"Stop_Numbe": 12.0, "Route": "7", "On_Street": "SB Brand"}),
+        (3, point(-118.2400, 34.1700), {"Stop_Numbe": 88.0, "Route": "12", "On_Street": None}),
+    ),
     "parks": features(
         "parks",
         (7, poly(-118.252, 34.158, -118.248, 34.162), {"NAME_ALF": "CENTRAL PARK"}),
@@ -81,7 +91,28 @@ LAYERS = {
 }
 
 # Clip buffer per layer; the boundary isn't clipped.
-CLIP = {"city_boundary": None, **{k: CITY_M for k in ("fire_stations", "parks")}}
+CLIP = {"city_boundary": None, **{k: CITY_M for k in ("fire_stations", "parks", "bus_stops")}}
+
+# Field types other than text, as a real build records them in the manifest.
+FIELD_TYPES = {
+    "Stop_Numbe": "esriFieldTypeDouble",
+    "FHSZ": "esriFieldTypeSmallInteger",
+    "STATIC_BFE": "esriFieldTypeDouble",
+    "DEPTH": "esriFieldTypeDouble",
+    "PubDate": "esriFieldTypeDate",
+}
+
+
+def fields_for(layer_id, with_global_id):
+    ds = DATASETS[layer_id]
+    out = [{"name": ds.id_field, "type": "esriFieldTypeOID", "alias": ds.id_field}]
+    if with_global_id:
+        out.append({"name": "GlobalID", "type": "esriFieldTypeGlobalID", "alias": "GlobalID"})
+    for name in ds.field_names:
+        out.append(
+            {"name": name, "type": FIELD_TYPES.get(name, "esriFieldTypeString"), "alias": name}
+        )
+    return out
 
 
 def write(root: Path, layers=None, *, global_ids=("fema_flood_zones",)) -> Path:
@@ -110,7 +141,7 @@ def write(root: Path, layers=None, *, global_ids=("fema_flood_zones",)) -> Path:
             "geometry": ds.geometry,
             "id_field": ds.id_field,
             "global_id_field": "GlobalID" if layer_id in global_ids else None,
-            "fields": [],
+            "fields": fields_for(layer_id, layer_id in global_ids),
             "clip": None if meters is None else {"buffer": ds.buffer, "meters": meters},
             "file": name,
             "bytes": len(data),

@@ -41,6 +41,10 @@ glendale-gis-mcp = "glendale_gis.__main__:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/glendale_gis"]
 
+# The user docs are served as MCP resources, so installed copies need them too.
+[tool.hatch.build.targets.wheel.force-include]
+"docs" = "glendale_gis/docs"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts"]  # tests import build_snapshot

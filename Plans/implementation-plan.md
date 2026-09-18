@@ -170,7 +170,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 ---
 
-## Phase 5 — Geocoder, generic tools and MCP server (stdio)
+## Phase 5 — Geocoder, generic tools and MCP server (stdio) ✅ Done except the client checks (September 18, 2026)
 
 ### `core/geocode.py`
 - Calls the city geocoder, returns candidates with scores.
@@ -189,6 +189,38 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - Entry point runs stdio by default.
 
 **Done when:** the server works in MCP Inspector and one real client (Claude Desktop or Claude Code), and an agent picks the right tool for a set of sample questions ("is 123 Brand Blvd in a flood zone?", "nearest fire station to …", "what zoning is at …").
+
+**Result:**
+- **11 tools:** `list_datasets`, `describe_dataset`, `query_dataset`, `geocode_address`, `hazards_at_location`, `wildfire_zone`, `flood_zone`, `seismic_zones`, `dam_inundation`, `debris_flow`, `nearest_resources`.
+  - All are marked read-only, and all have output schemas.
+  - Every tool that takes a location accepts `{"address"}` or `{"lat", "lon"}`.
+  - Results are returned as compact JSON text plus structured content, with `_meta` on every response.
+  - Errors the caller can fix are `is_error` results with suggestions, and with candidates when an address is ambiguous.
+- **`core/geocode.py`** applies the Phase 0 rules:
+  - It checks each candidate against the city boundary, with 25 m tolerance.
+  - It collapses PointAddress/StreetAddress duplicates within 50 m.
+  - A confident match is a single candidate scoring 90 or more, or a PointAddress at least 5 points ahead of the next.
+  - StreetName matches are never confident.
+  - Unit numbers get a note saying they were ignored.
+  - **Change from Phase 0:** intersections (StreetInt) can be confident, since they're precise points.
+  - Results are cached for 30 days (`GLENDALE_GIS_GEOCODE_CACHE_TTL_S`).
+  - Tested live against all the Phase 0 addresses, with the expected outcome for each.
+- **`core/cache.py`:** a SQLite cache in the cache directory. Keys are hashed, so addresses aren't stored in plain text. If a fetch fails, it serves stale data marked `stale: true`. If the file can't be opened, it falls back to memory.
+- **`core/query.py`:** structured filters (`eq ne lt lte gt gte in contains starts_with is_null not_null`), `near` (a radius, or 0 for "contains the point"), `bbox`, `fields`, paging with `next_offset`, and optional geometry.
+  - Text comparisons ignore case and surrounding spaces.
+  - For live parcels, filters become a `where` clause: field names are checked against the live schema, strings are quoted and escaped, numbers are validated, and LIKE wildcards are refused. Injection attempts are tested.
+  - Live results are cached for a day (`GLENDALE_GIS_LIVE_CACHE_TTL_S`).
+  - Geometries over 5,000 vertices are left out, with a pointer to `ref.layer_url`.
+- **Parcels:** kept, live only. Verified live: 613 E Broadway is City Hall, APN 5642-012-904, use type "Government", zoned "DSP / Civic Center".
+- **Privacy fix:** `httpx` logged request URLs, including addresses, at INFO. It's now kept at WARNING. The test for this was confirmed to fail without the fix.
+- **Real client:** every tool was called through a stdio MCP client against the real snapshot and the live geocoder.
+- **Resources (added after review):** `glendale-gis://about` (what the server does, every tool, how results work), `glendale-gis://datasets` and the template `glendale-gis://datasets/{dataset_id}` (generated from the catalog), plus `glendale-gis://docs/real-time-sources`, `glendale-gis://docs/snapshot-data` and `glendale-gis://snapshot/manifest`. The docs are packaged into the wheel; verified by installing a built wheel outside the repo. The instructions and tool descriptions now point to these URIs instead of a repo path. No prompts yet.
+- **`read_guide` tool (added after testing in Claude Desktop):** Desktop's log showed it called `resources/list` but never `resources/read`, and never listed templates. Resources are controlled by the client, so the model couldn't reach the guides. `read_guide(topic)` returns the same Markdown, and the instructions and docstrings now point to it.
+- **Tests:** 120 new, 297 in total.
+- **Still to do for "done":**
+  - Try it in MCP Inspector and in Claude Desktop or Claude Code.
+  - Check that an agent picks the right tool for the sample questions.
+  - `hazards_at_location` returns about 11.7 KB (about 3,000 tokens). Most of that is the nearest zone for each flood class; trim it if agents struggle with the size.
 
 ---
 
