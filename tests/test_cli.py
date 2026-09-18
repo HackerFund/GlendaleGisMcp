@@ -41,3 +41,25 @@ def test_server_builds():
 
     server = create_server(Settings.from_env({}))
     assert server.name == "glendale-gis"
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "does not score or rank risk",
+        'Never report it as "not in a zone"',
+        "NonWildland means unzoned, NOT safe from wildfire",
+        "Zone D means not studied, not safe",
+        "being inside the polygon is the hazard signal",
+        "HazardCl rates the consequences of a failure, not its likelihood",
+        "No result does not mean no risk",
+        "straight-line",
+        "It has NO real-time data",
+        "Genasys Protect",
+    ],
+)
+def test_instructions_carry_the_data_warnings(phrase):
+    from glendale_gis.core.config import Settings
+
+    server = create_server(Settings.from_env({}))
+    assert phrase in server.instructions

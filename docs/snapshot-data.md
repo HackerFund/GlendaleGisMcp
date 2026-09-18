@@ -25,6 +25,8 @@ The MCP server answers most questions from the snapshot, so it doesn't have to c
 
 The data is passed through as published. The snapshot doesn't score, rank or interpret risk; that is left to the teams building on it.
 
+**The snapshot has no real-time data:** no active fires, evacuation orders, warnings or earthquakes. For those, see [Real-Time Emergency Information](real-time-sources.md).
+
 ## GeoJSON in five minutes
 
 GeoJSON is plain JSON for map data, defined by [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946). A file holds a list of **features**. Each feature pairs a shape (its **geometry**) with a set of attributes (its **properties**).
@@ -255,7 +257,7 @@ jq '.features[0].properties' snapshot/hospitals.geojson  # first hospital's attr
 These are regulatory maps, not site-specific assessments. The data says where an agency has mapped a zone. It doesn't say how likely damage is at a particular address.
 
 - **Outside a mapped zone doesn't mean no hazard.** Every hazard layer only covers what its agency has studied and mapped.
-- **Wildfire (CAL FIRE):** every location in Glendale has a class: Very High, High, Moderate or NonWildland (unzoned). These 2025 zones take effect when the city adopts them by ordinance.
+- **Wildfire (CAL FIRE):** every location in Glendale has a class: Very High, High, Moderate or NonWildland (unzoned). About two-thirds of the city is Very High. The zones rate the long-term physical hazard of the landscape (fuels, terrain, weather), not the risk to a particular building. **NonWildland means unzoned, not safe from wildfire:** embers and house-to-house spread can reach unzoned areas. These 2025 zones take effect when the city adopts them by ordinance, and they are not evacuation zones.
 - **Fault, liquefaction and landslide (CGS):** being inside a polygon is the hazard signal. The attributes only describe the map (quadrangle, release date, links to the report); they don't grade severity.
 - **Flood (FEMA):** Zone D means the flood hazard was **not studied**, not that the area is safe. Zone X covers both 0.2%-annual-chance (500-year) areas and minimal-hazard areas; `ZONE_SUBTY` tells them apart. `SFHA_TF: "T"` marks a Special Flood Hazard Area.
 - **Dam inundation (DWR):** one dam can have several features, one per failure scenario or failed structure, so return all of them. `HazardCl` rates the consequences of a failure, not its likelihood. Federally owned dams aren't included. Real evacuation zones are set by local emergency managers.

@@ -52,6 +52,9 @@ class Dataset:
     fields: tuple[FieldDoc, ...] = ()
     id_field: str = "OBJECTID"
     class_field: str | None = None  # nearest-zone results are grouped by this field
+    # Classes the source defines as outside any zone (e.g. CAL FIRE "Unzoned, Non Wildland").
+    # Being inside one of these polygons does not make a location "in_zone".
+    unzoned_classes: tuple[str, ...] = ()
     name_field: str | None = None  # resources: display name
     address_fields: tuple[str, ...] = ()  # resources: joined with spaces into one address
     disclaimer: str = ""
@@ -99,7 +102,10 @@ HAZARDS: tuple[Dataset, ...] = (
             "Wildfire hazard severity zones mapped by CAL FIRE for areas where local agencies "
             "provide fire protection. All of Glendale is a Local Responsibility Area, so every "
             "location in the city has a class. Map dated March 24, 2025; zones take effect when "
-            "the city adopts them by ordinance."
+            "the city adopts them by ordinance. The zones rate the long-term physical hazard of "
+            "the landscape (fuels, terrain, weather), not the risk to a particular building. "
+            "NonWildland means unzoned, not free of wildfire risk: embers and "
+            "structure-to-structure spread can reach unzoned areas. Not an evacuation map."
         ),
         fields=(
             FieldDoc(
@@ -109,7 +115,7 @@ HAZARDS: tuple[Dataset, ...] = (
             ),
             FieldDoc(
                 "FHSZ",
-                "Hazard severity code.",
+                "Hazard severity code. -3 (unzoned) does not mean there is no wildfire risk.",
                 {
                     "-3": "Unzoned, Non Wildland",
                     "1": "Moderate Fire Hazard Severity Zone",
@@ -119,7 +125,8 @@ HAZARDS: tuple[Dataset, ...] = (
             ),
             FieldDoc(
                 "FHSZ_Description",
-                "Hazard severity name.",
+                "Hazard severity name. NonWildland (unzoned) does not mean there is no wildfire "
+                "risk.",
                 {
                     "NonWildland": "Unzoned, Non Wildland",
                     "Moderate": "Moderate Fire Hazard Severity Zone",
@@ -129,6 +136,7 @@ HAZARDS: tuple[Dataset, ...] = (
             ),
         ),
         class_field="FHSZ_Description",
+        unzoned_classes=("NonWildland",),
         disclaimer=REGULATORY_MAP_DISCLAIMER,
         docs=(
             "https://www.arcgis.com/sharing/rest/content/items/018035e18cdc4778afcbe06185c01426/info/metadata/metadata.xml",

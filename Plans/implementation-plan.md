@@ -136,7 +136,7 @@ Notes:
 
 ---
 
-## Phase 4 — Core lookups (offline)
+## Phase 4 — Core lookups (offline) ✅ Done (September 18, 2026)
 
 ### `core/snapshot.py`
 - Load the manifest and GeoJSON; build a shapely `STRtree` per layer at startup.
@@ -156,6 +156,18 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 **Done when:** all hazard and resource lookups work from coordinates with no network.
 
+**Result:**
+- `core/snapshot.py` loads all 20 layers in about 0.8 s. Geometries are held in local meters, so distances come straight from shapely. Each file is checked against its SHA-256 in the manifest. A missing or corrupt layer is marked unavailable, with a reason, instead of stopping the server. Point-in-zone and nearest-feature queries use STRtrees, including one per class, and take under 2 ms on the largest layer. Ties go to the lowest object ID, so results are deterministic.
+- `core/hazards.py`: `locate` (coordinates only; the geocoder comes in Phase 5), `wildfire_zone`, `flood_zone`, `seismic_zones`, `dam_inundation`, `debris_flow`, `hazards_at_location`.
+- `core/resources.py`: `nearest_resources` over the 7 resource layers. The limit is clamped to 1–25 (default 3). Unknown kinds raise a clear error.
+- `core/models.py`: `Location`, `ResolvedLocation`, `Ref`, `Meta` (serialized as `_meta`), `Feature`, `Nearest`, `HazardResult`, `SeismicZones`, `HazardsAtLocation`, `Resource`, `ResourceGroup`, `NearestResources`, `ToolError`.
+- **Decisions made here:**
+  - **Coverage:** a point outside the area the snapshot covers for a layer is `unavailable`, not `not_in_zone`. That area is the city plus 2 km for hazard layers.
+  - **`exact` flag:** a nearest distance farther than the edge of that area has `exact: false`, because a closer zone outside the snapshot can't be ruled out.
+  - **Unzoned classes:** CAL FIRE `NonWildland` is defined by the source as "Unzoned", so it doesn't count toward `in_zone`. The feature is still returned in `matches`, with a note. It is recorded as `unzoned_classes` in the catalog. Without this rule, every Glendale location would be `in_zone` for wildfire. Every FEMA flood zone, including X, counts as a zone; `FLD_ZONE`, `ZONE_SUBTY` and `SFHA_TF` tell them apart.
+  - **Notes** are added only where a value is easy to misread: CGS zones, FEMA Zone D, several dam scenarios at one point, and an empty debris-flow result.
+- **Tests:** 55 new, 167 in total. Most use a hand-made fixture snapshot with known answers. There are also golden checks against the real snapshot at 6 reference points: northern foothills, unincorporated La Crescenta, Verdugo hills, Chevy Chase Canyon, downtown, and the LA River channel. They are skipped when no snapshot is built. The new foothill point was confirmed with live queries on all 6 layers checked. The plan's original La Crescenta point turned out to be outside the city, in unincorporated La Crescenta. It is kept as a test of a covered point outside Glendale.
+
 ---
 
 ## Phase 5 — Geocoder, generic tools and MCP server (stdio)
@@ -173,6 +185,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 ### `server.py`
 - `MCPServer` (mcp 2.x) tools wrapping `core`, with docstrings written for agents, `readOnlyHint` on every tool, and errors that suggest next steps.
+- Hazard tool docstrings say the data is mapped hazard, not current conditions, and point to `docs/real-time-sources.md` for live alerts, fires and evacuations. Link to it by its GitHub URL once the repo is public: agents installed with `uvx` can't open a repo-relative path.
 - Entry point runs stdio by default.
 
 **Done when:** the server works in MCP Inspector and one real client (Claude Desktop or Claude Code), and an agent picks the right tool for a set of sample questions ("is 123 Brand Blvd in a flood zone?", "nearest fire station to …", "what zoning is at …").

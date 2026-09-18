@@ -12,12 +12,13 @@ Background:
 - `Plans/glendale-gis-mcp-notes.md` — original research: MCP design practices, Glendale's ArcGIS inventory, caching and rate-limit reasoning. Written before the scope narrowed, so its tool ideas (street sweeping, etc.) are not all in scope.
 - `Plans/hazard-sources.md` — verified state and federal hazard endpoints, with per-layer metadata, coded values and gotchas (includes Phase 0 findings).
 - `Plans/city-sources.md` — Glendale layer inventory, geocoder behavior, coded values and gotchas (Phase 0 findings).
+- `docs/real-time-sources.md` — where to find real-time emergency information (alerts, active fires, evacuation zones, earthquakes), which the server deliberately doesn't provide. Sources were checked on September 18, 2026; re-check before relying on them.
 - `docs/snapshot-data.md` — user guide to the snapshot's GeoJSON files and manifest. Update it when the snapshot format or layers change.
 - `Plans/implementation-plan.md` — phased order of work, with "done when" criteria and open questions.
 
 ## Status
 
-**Phases 0–3 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Next: Phase 4 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–4 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Next: Phase 5 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -70,7 +71,7 @@ Background:
 
 - Interpreting, scoring or ranking risk; preparedness advice or checklists
 - Resident-facing UI, personalization or storing household data
-- Live emergency alerts or evacuation orders
+- Live emergency alerts or evacuation orders, and any other real-time data. This was decided on September 18, 2026, after looking at NIFC's current fire perimeters: the data would be easy to add, but perimeters lag the fire and many fires have none, so "no perimeter nearby" reads as "safe". Instead, `docs/real-time-sources.md` lists the official sources and shows teams how to fetch perimeters themselves. The server `INSTRUCTIONS` and the tool docstrings point there. Don't add live feeds without revisiting this decision.
 - Other Glendale layers: water pressure zones, historic districts and parcels, street sweeping, pavement condition, truck routes, capital projects, hauler locator
 - Glendale, **AZ** (`glendaleaz-cog-gis.hub.arcgis.com`) — a different city
 - Docker
@@ -95,8 +96,9 @@ Background:
 - **`location` is an address or a latitude/longitude**, the same way in every tool. Coordinates skip geocoding.
 - Responses include the matched address, coordinates and geocoder score.
 - **Ambiguous addresses** return candidates instead of guessing. **Addresses outside Glendale** return a clear error.
-- Every hazard result has a `status` of `in_zone`, `not_in_zone` or `unavailable` (with a reason). Never let a missing source look like "not in zone".
-- **Nearest zone:** every hazard result includes the nearest zone with `distance_m` (0 when inside) and a `ref` identifying the feature. For classed layers (wildfire, flood), return the nearest zone for each class.
+- Every hazard result has a `status` of `in_zone`, `not_in_zone` or `unavailable` (with a reason). Never let a missing source look like "not in zone". A missing layer, or a point outside the area the snapshot covers for that layer, is `unavailable`.
+- **Unzoned classes don't count as in a zone.** A class the source itself defines as outside any zone (CAL FIRE `NonWildland`, "Unzoned, Non Wildland") is listed in the catalog's `unzoned_classes`. The feature still appears in `matches`, with a note. Every FEMA flood zone, including X, counts as a zone.
+- **Nearest zone:** every hazard result includes the nearest zone with `distance_m` (0 when inside) and a `ref` identifying the feature. For classed layers (wildfire, flood), return the nearest zone for each class. `exact: false` marks a nearest distance that is farther than the edge of the snapshot's coverage, where a closer zone outside the snapshot can't be ruled out.
 - `ref` = `{dataset, object_id, global_id, layer_url}`, so teams can fetch the full live record. Resource results carry the same `ref`.
 
 ```json
@@ -104,6 +106,7 @@ Background:
   "status": "not_in_zone",
   "nearest": {
     "distance_m": 240,
+    "exact": true,
     "attributes": {"FHSZ_Description": "Very High", "SRA": "LRA"},
     "ref": {"dataset": "calfire_fhsz_lra", "object_id": 4, "global_id": null,
             "layer_url": "https://services1.arcgis.com/.../FeatureServer/0"}
@@ -151,6 +154,8 @@ src/glendale_gis/
     config.py               # env-var settings with defaults
     catalog.py              # dataset registry: id, source, url, category, field docs, snapshot/live
     snapshot.py             # download + verify, load GeoJSON, STRtree, point/nearest queries
+    hazards.py              # one function per hazard tool, plus hazards_at_location
+    resources.py            # nearest_resources
     arcgis.py               # httpx client: allowlist, throttle, backoff, User-Agent
     geo.py                  # local-meter projection, buffers, distances, Esri JSON -> shapely
     geocode.py              # city geocoder + cache
@@ -190,6 +195,7 @@ tests/fixtures/             # recorded ArcGIS responses
 - **Errors are instructions.** Return a clear message with suggestions for what to try next, never a stack trace.
 - **`_meta` on every response:** `source` (agency), `url`, `cached`, `as_of` (snapshot date or fetch time), `stale`.
 - **Carry source disclaimers.** Glendale's GIS data is not a substitute for legal descriptions or surveys; hazard zone maps are regulatory maps, not site-specific assessments.
+- **Warn about misreadings in four places, kept in step:** the server `INSTRUCTIONS` in `server.py` (sent to every client on connect), the catalog descriptions and field docs (shown by `describe_dataset`), the result `notes` in `core/hazards.py`, and `docs/snapshot-data.md`. For example, CAL FIRE `NonWildland` means unzoned, not safe from wildfire; FEMA Zone D means not studied; an empty debris-flow result doesn't mean no risk. Keep `INSTRUCTIONS` short, since clients load it into every conversation.
 
 ## Security
 
