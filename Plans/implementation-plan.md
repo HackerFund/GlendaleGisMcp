@@ -85,7 +85,7 @@ One entry per dataset: `id`, `title`, `category` (hazard / resource / reference)
 
 ---
 
-## Phase 3 — Snapshot builder
+## Phase 3 — Snapshot builder ✅ Done (September 18, 2026)
 
 `scripts/build_snapshot.py`:
 
@@ -98,6 +98,41 @@ One entry per dataset: `id`, `title`, `category` (hazard / resource / reference)
 **Distance math decision:** shapely has no reprojection. Instead of adding `pyproj`, convert lon/lat to local meters with an equirectangular projection centered on Glendale (error well under 1% across a 20 km area). This keeps dependencies wheel-only and small. Revisit if accuracy matters more.
 
 **Done when:** a full build succeeds, sizes are recorded in `Plans/`, and the snapshot is known to be under budget.
+
+**Result:**
+- `scripts/build_snapshot.py` builds 20 layers in about 80 seconds. It writes GeoJSON files and `manifest.json` to a staging directory and only moves them into `snapshot/` (gitignored) if every layer succeeds and the total is under budget. Each manifest entry has the source URL, fetch time, source last-edit date, feature counts before and after clipping, ID and GlobalID fields, kept fields with types, clip buffer, bytes and SHA-256. `--only` rebuilds some layers and keeps the rest.
+- `core/geo.py`: the equirectangular projection (origin -118.245, 34.193, the center of the city boundary's extent), buffers and distances in meters, coordinate rounding, and Esri JSON to shapely conversion. Phase 4 reuses all of it. Distances are within 0.5% of great-circle distance across the city (tested).
+- **Client fix:** with a spatial filter, offset paging on the city server returned duplicate rows for streets (8,031 rows for 8,026 features). The builder's duplicate-ID check caught it. `ArcGISClient.query` now pages spatial queries by object ID.
+- **Validation (live, not in the test suite):** all geometries are valid and object IDs are unique. GlobalIDs are preserved for CGS, FEMA and DWR; CAL FIRE's layer has none. In 91 point checks (8 named places across the city against all 7 hazard layers, plus 35 points sampled inside zones or 25 m outside zone edges), point-in-polygon on the snapshot matched a live point query against the source, with no mismatches.
+- 112 tests pass (46 new); ruff clean.
+
+**Snapshot sizes** (city buffer 100 m, hazard buffer 2 km, built September 18, 2026):
+
+| Layer | In envelope | Kept after clip | KB |
+|---|---|---|---|
+| `dwr_dam_inundation` | 26 | 19 | 23,618 |
+| `zoning` | 2,426 | 2,426 | 4,707 |
+| `streets` | 8,026 | 6,868 | 3,137 |
+| `cgs_landslide_zones` | 1,203 | 680 | 1,902 |
+| `fema_flood_zones` | 75 | 47 | 387 |
+| `zip_codes` | 24 | 24 | 383 |
+| `calfire_fhsz_lra` | 18 | 13 | 289 |
+| `parks` | 43 | 43 | 185 |
+| `cgs_liquefaction_zones` | 54 | 27 | 168 |
+| `city_boundary` | 1 | 1 (not clipped) | 66 |
+| `bus_stops` | 331 | 286 | 59 |
+| `neighborhood_zones` | 37 | 37 | 46 |
+| `fire_station_districts` | 10 | 10 | 23 |
+| `cgs_fault_zones` | 6 | 5 | 11 |
+| `schools`, `fire_stations`, `libraries`, `police_stations`, `hospitals` | 27, 9, 8, 1, 3 | all | 11 total |
+| `usgs_debris_flow` | 1 | 0 | 0 |
+| **Total** | | | **34,991 (35.0 of 100 MB)** |
+
+Notes:
+- **Dam inundation is two-thirds of the snapshot.** The polygons are raster-derived (about 2.3 million source vertices). The size fits the budget, so the geometry is kept as published. If size or load time becomes a problem, simplify it to about 1 m, which is well below the maps' accuracy.
+- **Bus stops:** 52 of the 338 Beeline stops are more than 100 m outside the city and are dropped. **Streets:** 1,202 segments outside the city buffer are dropped.
+- **Debris flow:** one USGS basin now falls inside the query envelope but outside the 2 km clip area (Phase 0 found none). The layer is allowed to be empty.
+- Build time is mostly CPU for dam inundation geometry (about 50 s).
 
 ---
 

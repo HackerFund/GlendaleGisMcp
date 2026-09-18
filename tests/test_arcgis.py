@@ -340,6 +340,34 @@ async def test_query_falls_back_to_object_ids_without_pagination():
 
 
 @respx.mock
+async def test_spatial_query_pages_by_object_id_even_when_offsets_are_supported():
+    # Offset pages with a spatial filter can overlap on ArcGIS Server (seen on Glendale streets).
+    envelope = {"xmin": -118.3, "ymin": 34.1, "xmax": -118.2, "ymax": 34.3}
+
+    def respond(request):
+        params = params_of(request)
+        assert "resultOffset" not in params
+        if params.get("returnIdsOnly") == "true":
+            assert params["geometryType"] == "esriGeometryEnvelope"
+            assert params["inSR"] == "4326"
+            return httpx.Response(200, json={"objectIds": [3, 1, 2]})
+        assert "geometry" not in params  # the ID chunk replaces the spatial filter
+        ids = [int(i) for i in params["objectIds"].split(",")]
+        return httpx.Response(200, json={"features": [feature(i) for i in ids]})
+
+    route = respx.get(ZONING + "/query").mock(side_effect=respond)
+    async with make_client(FakeTime()) as client:
+        features = await client.query(
+            ZONING,
+            geometry=envelope,
+            geometry_type="esriGeometryEnvelope",
+            metadata=PAGING_META,
+        )
+    assert [f["attributes"]["OBJECTID"] for f in features] == [1, 2, 3]
+    assert route.call_count == 3  # IDs, then chunks of maxRecordCount (2)
+
+
+@respx.mock
 async def test_query_fetches_metadata_when_not_given():
     respx.get(ZONING).mock(return_value=httpx.Response(200, json=PAGING_META))
     respx.get(ZONING + "/query").mock(

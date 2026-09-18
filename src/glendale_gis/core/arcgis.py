@@ -309,8 +309,10 @@ class ArcGISClient:
     ) -> list[JsonDict]:
         """Return all matching features, paging past ``maxRecordCount``.
 
-        Uses ``resultOffset`` paging when the layer supports it, otherwise fetches object IDs
-        and requests them in chunks. Stops early once ``max_features`` is reached.
+        Uses ``resultOffset`` paging for attribute-only queries on layers that support it.
+        Otherwise fetches object IDs and requests them in chunks: with a spatial filter, offset
+        pages on ArcGIS Server can overlap (seen on Glendale streets: 8,031 rows for 8,026
+        features), so they could also skip rows. Stops early once ``max_features`` is reached.
         """
         layer_url = layer_url.rstrip("/")
         meta = metadata if metadata is not None else await self.layer_metadata(layer_url)
@@ -334,7 +336,7 @@ class ArcGISClient:
         if extra_params:
             base.update(extra_params)
 
-        if supports_paging:
+        if supports_paging and geometry is None:
             return await self._query_by_offset(layer_url, base, id_field, page_size, max_features)
         return await self._query_by_ids(layer_url, base, page_size, max_features)
 

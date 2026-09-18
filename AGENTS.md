@@ -12,11 +12,12 @@ Background:
 - `Plans/glendale-gis-mcp-notes.md` — original research: MCP design practices, Glendale's ArcGIS inventory, caching and rate-limit reasoning. Written before the scope narrowed, so its tool ideas (street sweeping, etc.) are not all in scope.
 - `Plans/hazard-sources.md` — verified state and federal hazard endpoints, with per-layer metadata, coded values and gotchas (includes Phase 0 findings).
 - `Plans/city-sources.md` — Glendale layer inventory, geocoder behavior, coded values and gotchas (Phase 0 findings).
+- `docs/snapshot-data.md` — user guide to the snapshot's GeoJSON files and manifest. Update it when the snapshot format or layers change.
 - `Plans/implementation-plan.md` — phased order of work, with "done when" criteria and open questions.
 
 ## Status
 
-**Phases 0–2 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Next: Phase 3 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–3 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Next: Phase 4 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -28,6 +29,7 @@ Background:
   - Lint: `ruff check .`
   - Format: `ruff format .` (`Plans/` is excluded so research notes aren't rewritten)
   - Run the server: `glendale-gis-mcp` (stdio) or `glendale-gis-mcp --http [--host H] [--port P]`
+  - Build the snapshot: `python scripts/build_snapshot.py [--only ID,...] [--dry-run] [--out DIR]` (hits live servers; about 1.5 minutes). Output goes to `snapshot/`, which is gitignored.
 - All settings are `GLENDALE_GIS_<FIELD>` environment variables matching the fields in `core/config.py` (e.g. `GLENDALE_GIS_HAZARD_BUFFER_M`, `GLENDALE_GIS_CONTACT`, `GLENDALE_GIS_SNAPSHOT_PATH`). Unset or empty values keep defaults; invalid values raise `ConfigError`.
 
 ## Scope
@@ -118,7 +120,8 @@ Built by `scripts/build_snapshot.py`. It:
 - Rounds coordinates to 6 decimal places and keeps only useful fields.
 - Writes one GeoJSON file per layer plus `manifest.json` (source, URL, fetch time, source last-edit date, feature count, fields, byte size).
 - Reports per-layer sizes and fails if the total exceeds **100 MB** or a layer is unexpectedly empty.
-- Supports `--only <dataset,...>`, `--dry-run`, and `--publish`.
+- Supports `--only <dataset,...>` (other layers already in `--out` are kept), `--dry-run`, `--out`, and (Phase 6) `--publish`.
+- Fails the whole build, writing nothing, if a catalog field is missing from the source schema or a layer has duplicate object IDs.
 
 ### Distribution
 
@@ -149,6 +152,7 @@ src/glendale_gis/
     catalog.py              # dataset registry: id, source, url, category, field docs, snapshot/live
     snapshot.py             # download + verify, load GeoJSON, STRtree, point/nearest queries
     arcgis.py               # httpx client: allowlist, throttle, backoff, User-Agent
+    geo.py                  # local-meter projection, buffers, distances, Esri JSON -> shapely
     geocode.py              # city geocoder + cache
     cache.py                # cache interface (SQLite locally)
     models.py               # Pydantic outputs, Location input, _meta envelope
@@ -204,6 +208,8 @@ tests/fixtures/             # recorded ArcGIS responses
 - Coordinate systems differ by source: 3857 (city), 2229 (city geocoder), 3310 (CAL FIRE, CGS, DWR), 4269 (FEMA). Always pass `inSR=4326` and `outSR=4326`.
 - `maxRecordCount` differs per service (1000–5000 seen). Read it from layer metadata; never hardcode it.
 - **Queries silently truncate at `maxRecordCount`.** Results come back with `exceededTransferLimit: true` and no error. Always check it and page with `resultOffset` + `orderByFields=OBJECTID`.
+- **Offset paging with a spatial filter is unreliable on ArcGIS Server:** the city streets layer returned 8,031 rows for 8,026 features (pages overlapped). For spatial queries, page by object ID instead (`returnIdsOnly`, then `objectIds` chunks). `ArcGISClient.query` does this automatically.
+- **Dam inundation polygons are raster-derived:** thousands of rings per feature, about 2.3 million vertices in the buffer area, 23.6 MB of the 35 MB snapshot. Shells often share edges, so they must be unioned to be valid. An island can sit inside a hole, so assign each hole to the smallest shell that covers the whole ring, not just an interior point (`core/geo.py`).
 - Hazard and city layers have **no coded-value domains** except zoning `ZONENUM` and `GENPLAN`. Field meanings are documented in `Plans/hazard-sources.md` and `Plans/city-sources.md`; mark inferred meanings as inferred in field docs.
 - Sentinel and messy values: FEMA uses `-9999` for "no value"; USGS legend strings have inconsistent spacing and field-name casing; fire station `sta_no` has a leading space; bus `Route` is a comma-separated string.
 - City layers have **no `GlobalID` and no `editingInfo`** — `ref.global_id` is null and freshness needs a fallback.
