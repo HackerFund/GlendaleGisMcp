@@ -22,7 +22,7 @@ Background:
 
 ## Environment
 
-- Develop on Python 3.13, virtualenv at `.venv` (`python3.13 -m venv .venv`). Activate with `source .venv/bin/activate`. Don't use an older system Python; the package needs 3.10 or later.
+- Develop on Python 3.13 in a virtualenv at `.venv` (`python3.13 -m venv .venv`). Activate with `source .venv/bin/activate`. Don't use an older system Python; the package needs 3.10 or later.
 - The package targets **Python 3.10+** (`requires-python = ">=3.10"`, the MCP SDK minimum), because teams will have mixed versions. Don't use 3.11+ only features (e.g. `tomllib`, `ExceptionGroup`, `typing.Self`).
 - Commands (run from the repo root with `.venv` active):
   - Install for development: `pip install -e ".[dev]"`
