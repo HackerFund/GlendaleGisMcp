@@ -149,7 +149,7 @@ Built by `scripts/build_snapshot.py`. It:
 - **No `pyproj`.** Distances use a local equirectangular projection centered on Glendale (error well under 1% across the city). Revisit only if accuracy needs change.
 - All tunable values (buffers, throttle limits, cache dir, User-Agent contact, host/port, API key, snapshot path) live in `core/config.py`, read from environment variables with defaults.
 - **No GDAL, GeoPandas, PostGIS or Docker.** Every dependency must install from wheels on macOS, Windows and Linux.
-- Install for teams: `uvx --from git+<repo> glendale-gis-mcp` (primary), `pip install git+<repo>` (fallback).
+- Install for teams: `uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp` (primary), `pip install git+https://github.com/HackerFund/GlendaleGisMcp` (fallback). Repo: https://github.com/HackerFund/GlendaleGisMcp (public).
 - Transport: stdio by default; `--http` for streamable HTTP.
 
 ### Layout

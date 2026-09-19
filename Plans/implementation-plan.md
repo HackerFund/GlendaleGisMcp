@@ -231,7 +231,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - Runtime: if no local snapshot, download the asset from the lock file URL into the `platformdirs` cache dir, verify SHA-256, unzip, load. Config can point to a local snapshot path for development.
 - No network or bad checksum: log it, run with live fallbacks, and mark results `stale` or `unavailable`.
 
-**Done when:** `uvx --from git+<repo> glendale-gis-mcp` on a clean machine downloads the snapshot and answers a hazard query.
+**Done when:** `uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp` on a clean machine downloads the snapshot and answers a hazard query.
 
 ---
 
@@ -262,7 +262,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 ## Open questions
 
-1. **GitHub repo:** owner, name and visibility. Needed for `uvx --from git+…` and Release assets (Phase 6). There is no remote yet.
+1. ~~**GitHub repo:** owner, name and visibility.~~ Answered: [HackerFund/GlendaleGisMcp](https://github.com/HackerFund/GlendaleGisMcp), public. Needed for `uvx --from git+…` and Release assets (Phase 6). There is no remote yet.
 2. ~~**Hackathon date:** sets how much of Phases 7–8 must be done and when.~~ Answered: **Jewel City Hacks 5, Saturday, September 26, 2026**, 8 AM–8 PM at Glendale Community College ([event](https://hacker.fund/jewelcityhacks), [Luma](https://luma.com/jewelcityhacks5)). The theme is "Think Globally, Build Locally". Phases 6–8 should be done, and the hosted server up with min instances 1, before then.
 3. **GCP project and region** for Cloud Run.
 4. ~~**API key for the hosted instance:** open to everyone, or key shared with registered teams?~~ Decided: one shared hackathon secret, required when deployed.

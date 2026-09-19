@@ -50,7 +50,7 @@ Most data comes from an offline snapshot of the public ArcGIS services (about 35
 The packaged install (`uvx`) and the hosted server are coming. For now, run it from source. You need Python 3.10 or later.
 
 ```sh
-git clone <repo-url> GlendaleGisMcp && cd GlendaleGisMcp
+git clone https://github.com/HackerFund/GlendaleGisMcp.git && cd GlendaleGisMcp
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 python scripts/build_snapshot.py   # downloads and clips the data, about 1.5 minutes
