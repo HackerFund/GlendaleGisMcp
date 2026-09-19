@@ -38,7 +38,7 @@ Short scripted checks. Results: checks 2–4 and hazard coded values in `Plans/h
 **Result:**
 - Installed with `pip install -e ".[dev]"` on Python 3.13; 14 tests pass; `ruff check` and `ruff format --check` are clean.
 - `glendale-gis-mcp --help` and `--version` work, and a real MCP client completed a stdio handshake (server `glendale-gis 0.1.0`, protocol `2025-11-25`, no tools yet).
-- **Python 3.10 was not run** because it isn't installed on the dev machine. Checked instead: every runtime dependency resolves to wheels for Python 3.10 on macOS arm64, Windows x64 and Linux x86_64, and ruff targets `py310`. Run the tests on a real 3.10 before release (e.g. `uv run --python 3.10 pytest` or CI).
+- **Python 3.10 was not run** at first because it wasn't installed on the dev machine. *Update (September 18, 2026): all 323 tests pass on Python 3.10.21, run with uv.* Checked instead: every runtime dependency resolves to wheels for Python 3.10 on macOS arm64, Windows x64 and Linux x86_64, and ruff targets `py310`. Run the tests on a real 3.10 before release (e.g. `uv run --python 3.10 pytest` or CI).
 - No Makefile; commands are documented in `AGENTS.md`.
 - `mcp` 2.x renamed `FastMCP` to `MCPServer`, so the server uses `mcp.server.mcpserver.MCPServer`.
 - **Open question for Phase 2:** `mcp` 2.x depends on `httpx2` (pydantic's fork of httpx), so installing plain `httpx` adds a second HTTP client. `respx` only mocks plain `httpx`. Decide whether the ArcGIS client uses `httpx` + `respx` (as planned) or `httpx2` with a different mocking approach.
@@ -250,6 +250,9 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - **Live check:** a download into an empty cache took 1.1 s through GitHub's redirect. The unpacked files are byte-for-byte identical to the local build, and the second run used the cache.
 - **Change from the plan: there's no live per-point fallback.** If the download fails, the server uses the older cached snapshot, and results say `_meta.stale: true`. With no copy at all, it starts anyway, and tools explain that the snapshot is unavailable. A live fallback would only return zone membership, not nearest zones; it would need network access that just failed; and it would add load on the agency servers. So it isn't worth it before the event.
 - **Tests:** 26 new, 323 in total.
+- **Done-when check passed (September 18, 2026), from the pushed repo with empty caches:**
+  - `uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp --fetch-snapshot` downloaded and verified the snapshot in 4.3 s. The server then ran under `uvx` over stdio and answered `flood_zone` for 613 E Broadway (zone X) and `read_guide`.
+  - The README's pip route worked too: venv, `pip install git+https://…`, `--fetch-snapshot`, and the forced-reinstall update. `nearest_resources` for 1000 W Glenoaks gave Fire Station 27, 1,436 m away.
 
 ---
 
