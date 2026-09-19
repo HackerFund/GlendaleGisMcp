@@ -23,7 +23,6 @@ from shapely.geometry.base import BaseGeometry
 
 from glendale_gis.core import geo
 from glendale_gis.core.catalog import DATASETS, Dataset, datasets
-from glendale_gis.core.config import Settings
 from glendale_gis.core.models import Feature, Meta, Ref
 
 MANIFEST_NAME = "manifest.json"
@@ -38,11 +37,6 @@ class SnapshotError(Exception):
 
 class LayerUnavailable(Exception):
     """One layer can't be used; the message says why."""
-
-
-def default_snapshot_path(settings: Settings) -> Path:
-    """``GLENDALE_GIS_SNAPSHOT_PATH`` if set, else ``snapshot/`` in the cache directory."""
-    return settings.snapshot_path or settings.cache_dir / "snapshot"
 
 
 def catalog_meta(ds: Dataset) -> Meta:
@@ -66,6 +60,7 @@ class Layer:
     properties: list[dict[str, Any]]
     geoms: np.ndarray  # local meters
     tree: shapely.STRtree = field(init=False)
+    stale: bool = False  # an older snapshot is in use because the current one couldn't load
     _class_trees: dict[str, tuple[np.ndarray, shapely.STRtree]] = field(
         init=False, default_factory=dict
     )
@@ -100,7 +95,7 @@ class Layer:
             url=self.layer_url,
             cached=True,
             as_of=self.entry.get("fetched_at"),
-            stale=False,
+            stale=self.stale,
             source_last_edit=self.entry.get("source_last_edit"),
         )
 
@@ -175,8 +170,10 @@ class Snapshot:
         manifest: Mapping[str, Any],
         layers: Mapping[str, Layer],
         errors: Mapping[str, str],
+        stale: bool = False,
     ) -> None:
         self.path = path
+        self.stale = stale
         self.manifest = manifest
         self._layers = dict(layers)
         self.errors = dict(errors)
@@ -188,7 +185,7 @@ class Snapshot:
         self._coverage: dict[float, BaseGeometry] = {}
 
     @classmethod
-    def load(cls, path: Path | str) -> Snapshot:
+    def load(cls, path: Path | str, *, stale: bool = False) -> Snapshot:
         path = Path(path)
         manifest_path = path / MANIFEST_NAME
         if not manifest_path.exists():
@@ -211,10 +208,10 @@ class Snapshot:
                 errors[ds.id] = "This layer is not in the snapshot."
                 continue
             try:
-                layers[ds.id] = _load_layer(path, ds, entries[ds.id])
+                layers[ds.id] = _load_layer(path, ds, entries[ds.id], stale)
             except (OSError, ValueError, KeyError, TypeError, ShapelyError) as exc:
                 errors[ds.id] = f"This layer could not be loaded: {exc}"
-        return cls(path, manifest, layers, errors)
+        return cls(path, manifest, layers, errors, stale)
 
     @property
     def built_at(self) -> str | None:
@@ -242,7 +239,7 @@ class Snapshot:
         return self._coverage[meters]
 
 
-def _load_layer(path: Path, ds: Dataset, entry: Mapping[str, Any]) -> Layer:
+def _load_layer(path: Path, ds: Dataset, entry: Mapping[str, Any], stale: bool) -> Layer:
     data = (path / entry["file"]).read_bytes()
     expected = entry.get("sha256")
     if expected and hashlib.sha256(data).hexdigest() != expected:
@@ -256,5 +253,9 @@ def _load_layer(path: Path, ds: Dataset, entry: Mapping[str, Any]) -> Layer:
         geoms.append(geo.to_local(shape(feature["geometry"])))
         properties.append(feature.get("properties") or {})
     return Layer(
-        dataset=ds, entry=entry, properties=properties, geoms=np.array(geoms, dtype=object)
+        dataset=ds,
+        entry=entry,
+        properties=properties,
+        geoms=np.array(geoms, dtype=object),
+        stale=stale,
     )

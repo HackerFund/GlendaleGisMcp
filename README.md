@@ -47,25 +47,26 @@ Most data comes from an offline snapshot of the public ArcGIS services (about 35
 
 ## Try it
 
-The packaged install (`uvx`) and the hosted server are coming. For now, run it from source. You need Python 3.10 or later.
+You need Python 3.10 or later. On first run the server downloads the data snapshot (about 6 MB) from this repository's releases, checks its SHA-256, and caches it.
+
+**With [uv](https://docs.astral.sh/uv/)** (recommended; nothing to install permanently):
 
 ```sh
-git clone https://github.com/HackerFund/GlendaleGisMcp.git && cd GlendaleGisMcp
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-python scripts/build_snapshot.py   # downloads and clips the data, about 1.5 minutes
+uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp --fetch-snapshot
 ```
 
-Then add the server to your client, using absolute paths:
+That downloads and verifies the snapshot, then exits, so your client doesn't wait for it later. **With pip:** `pip install git+https://github.com/HackerFund/GlendaleGisMcp`, then run `glendale-gis-mcp --fetch-snapshot`.
 
-**Claude Desktop:** in `claude_desktop_config.json` (Settings → Developer → Edit Config), then quit and reopen Claude Desktop:
+Then add the server to your client:
+
+**Claude Desktop:** in `claude_desktop_config.json` (Settings → Developer → Edit Config), then quit and reopen Claude Desktop. Use the full path to `uvx` (`which uvx`), since Claude Desktop doesn't see your shell's `PATH`:
 
 ```json
 {
   "mcpServers": {
     "glendale-gis": {
-      "command": "/path/to/GlendaleGisMcp/.venv/bin/glendale-gis-mcp",
-      "env": { "GLENDALE_GIS_SNAPSHOT_PATH": "/path/to/GlendaleGisMcp/snapshot" }
+      "command": "/full/path/to/uvx",
+      "args": ["--from", "git+https://github.com/HackerFund/GlendaleGisMcp", "glendale-gis-mcp"]
     }
   }
 }
@@ -74,10 +75,21 @@ Then add the server to your client, using absolute paths:
 **Claude Code:**
 
 ```sh
-claude mcp add glendale-gis -e GLENDALE_GIS_SNAPSHOT_PATH=/path/to/GlendaleGisMcp/snapshot -- /path/to/GlendaleGisMcp/.venv/bin/glendale-gis-mcp
+claude mcp add glendale-gis -- uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
 ```
 
 Then ask, for example: "Is 613 E Broadway in Glendale in a flood zone?" or "What's the nearest fire station to 1000 W Glenoaks Blvd?"
+
+**From source** (to change the code):
+
+```sh
+git clone https://github.com/HackerFund/GlendaleGisMcp.git && cd GlendaleGisMcp
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest
+```
+
+The published snapshot is used by default. To build your own (about 1.5 minutes; it queries the live agency servers), run `python scripts/build_snapshot.py` and point the server at it with `GLENDALE_GIS_SNAPSHOT_PATH=$PWD/snapshot`.
 
 ## Docs
 

@@ -46,9 +46,11 @@ glendale-gis-mcp = "glendale_gis.__main__:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/glendale_gis"]
 
-# The user docs are served as MCP resources, so installed copies need them too.
+# The user docs are served as MCP resources, and the lock tells installed copies which snapshot
+# release to download, so both ship inside the package.
 [tool.hatch.build.targets.wheel.force-include]
 "docs" = "glendale_gis/docs"
+"snapshot.lock.json" = "glendale_gis/snapshot.lock.json"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

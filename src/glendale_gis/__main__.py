@@ -29,6 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--port", type=int, help="HTTP port (default: GLENDALE_GIS_HTTP_PORT or 8000)"
     )
+    parser.add_argument(
+        "--fetch-snapshot",
+        action="store_true",
+        help="download and verify the published data snapshot, then exit",
+    )
     return parser
 
 
@@ -47,9 +52,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"glendale-gis-mcp: configuration error: {exc}", file=sys.stderr)
         return 2
 
+    if args.fetch_snapshot:
+        return fetch_snapshot(settings)
+
     from glendale_gis.server import run  # imported late so --help and --version stay fast
 
     run(settings, http=args.http)
+    return 0
+
+
+def fetch_snapshot(settings: Settings) -> int:
+    from glendale_gis.core.distribution import ensure_snapshot
+
+    resolved = ensure_snapshot(settings)
+    if resolved.path is None:
+        print(f"glendale-gis-mcp: no snapshot: {resolved.error}", file=sys.stderr)
+        return 1
+    note = f" (stale: {resolved.error})" if resolved.stale else ""
+    print(f"Snapshot ready ({resolved.source}): {resolved.path}{note}")
     return 0
 
 

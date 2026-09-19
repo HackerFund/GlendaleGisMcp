@@ -224,7 +224,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 ---
 
-## Phase 6 — Snapshot distribution
+## Phase 6 — Snapshot distribution ✅ Done (September 18, 2026)
 
 - **Requires a GitHub repo** (see open questions).
 - `build_snapshot.py --publish`: zip the snapshot, compute SHA-256, create a GitHub Release (`gh release create snapshot-YYYYMMDD`), upload the asset, rewrite `snapshot.lock.json`.
@@ -232,6 +232,24 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - No network or bad checksum: log it, run with live fallbacks, and mark results `stale` or `unavailable`.
 
 **Done when:** `uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp` on a clean machine downloads the snapshot and answers a hazard query.
+
+**Result:**
+- **Published** [`snapshot-20260918`](https://github.com/HackerFund/GlendaleGisMcp/releases/tag/snapshot-20260918): 5.9 MB zipped (35 MB unpacked). `snapshot.lock.json` is committed and shipped inside the wheel.
+- **`build_snapshot.py --publish`:**
+  - Zips only the manifest and the files it lists, deterministically (fixed timestamps, sorted order).
+  - Refuses to overwrite an existing release; use `--tag` for a second one the same day.
+  - Release notes list each layer with its source, feature count and last-edit date.
+  - Rewrites the lock only after the upload succeeds.
+- **`core/distribution.py` at startup:**
+  - `GLENDALE_GIS_SNAPSHOT_PATH` wins. Otherwise the server uses a verified cached copy, or downloads the release named in the lock.
+  - Downloads only from this repo's releases; redirects are allowed only to GitHub's asset hosts.
+  - Checks size and SHA-256, and refuses absolute paths, `..`, symlinks and archives over 500 MB.
+  - Unpacks into a temporary folder and renames it into place.
+  - Keeps the current snapshot plus one older one.
+- **`glendale-gis-mcp --fetch-snapshot`** downloads and verifies the snapshot, then exits. Use it to pre-warm the cache, and in Phase 7 for the Cloud Run build.
+- **Live check:** a download into an empty cache took 1.1 s through GitHub's redirect. The unpacked files are byte-for-byte identical to the local build, and the second run used the cache.
+- **Change from the plan: there's no live per-point fallback.** If the download fails, the server uses the older cached snapshot, and results say `_meta.stale: true`. With no copy at all, it starts anyway, and tools explain that the snapshot is unavailable. A live fallback would only return zone membership, not nearest zones; it would need network access that just failed; and it would add load on the agency servers. So it isn't worth it before the event.
+- **Tests:** 26 new, 323 in total.
 
 ---
 

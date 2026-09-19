@@ -1,12 +1,17 @@
 """Build the offline snapshot of catalog layers.
 
     python scripts/build_snapshot.py [--only ID,...] [--dry-run] [--out DIR]
+    python scripts/build_snapshot.py --publish [--no-build] [--tag snapshot-YYYYMMDD]
 
 Fetches the city boundary, then every snapshot dataset in the catalog. City layers are clipped to
 the boundary plus ``GLENDALE_GIS_CITY_BUFFER_M`` and hazard layers to the boundary plus
 ``GLENDALE_GIS_HAZARD_BUFFER_M`` (the wider buffer keeps nearest-zone distances right near the
 city limit). Writes one GeoJSON file per layer and ``manifest.json``. Nothing in the output
 directory changes unless the whole build succeeds.
+
+``--publish`` zips the snapshot, uploads it as a GitHub Release asset of this repository (with the
+``gh`` CLI) and rewrites ``snapshot.lock.json``, which you then commit. Installed copies download
+the release named in the lock.
 """
 
 from __future__ import annotations
@@ -20,8 +25,11 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
+import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,13 +44,17 @@ from glendale_gis.core import geo
 from glendale_gis.core.arcgis import ArcGISClient, ArcGISError, check_allowed
 from glendale_gis.core.catalog import DATASETS, Dataset, datasets
 from glendale_gis.core.config import ConfigError, Settings
+from glendale_gis.core.distribution import LOCK_NAME, RELEASE_URL_PREFIX, REPO, Lock
 
 log = logging.getLogger("build_snapshot")
 
 MANIFEST_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 BOUNDARY_ID = "city_boundary"
-DEFAULT_OUT = Path(__file__).resolve().parent.parent / "snapshot"
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUT = ROOT / "snapshot"
+LOCK_PATH = ROOT / LOCK_NAME
+ZIP_DATE = (2020, 1, 1, 0, 0, 0)  # fixed timestamps, so the same data zips the same way
 BYTES_PER_MB = 1_000_000
 
 # Layers allowed to be empty. No current USGS post-fire assessment covers Glendale.
@@ -483,6 +495,118 @@ def _iso_from_millis(millis: float) -> str:
 
 
 # --------------------------------------------------------------------------------------------
+# Publish
+# --------------------------------------------------------------------------------------------
+
+
+def _run(args: Sequence[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(list(args), capture_output=True, text=True, check=False)
+
+
+def zip_snapshot(out_dir: Path, archive: Path) -> None:
+    """Zip the manifest and the layer files it lists (nothing else), deterministically."""
+    manifest = json.loads((out_dir / MANIFEST_NAME).read_text())
+    names = [MANIFEST_NAME, *sorted(e["file"] for e in manifest["layers"].values())]
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        for name in names:
+            info = zipfile.ZipInfo(name, date_time=ZIP_DATE)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, (out_dir / name).read_bytes())
+
+
+def release_notes(manifest: Mapping[str, Any], sha256: str, size: int) -> str:
+    rows = "\n".join(
+        f"| `{layer_id}` | {e['source_agency']} | {e['feature_count']} | "
+        f"{(e.get('source_last_edit') or 'not published')[:10]} |"
+        for layer_id, e in sorted(manifest["layers"].items())
+    )
+    return (
+        f"Offline data snapshot for the Glendale GIS MCP server, built {manifest['built_at']}.\n\n"
+        "Installed copies download this asset automatically (see `snapshot.lock.json`). "
+        "Hazard layers cover Glendale plus 2 km; city layers Glendale plus 100 m.\n\n"
+        f"- SHA-256: `{sha256}`\n- Size: {size:,} bytes\n\n"
+        "| Layer | Source | Features | Source last changed |\n| --- | --- | --- | --- |\n"
+        f"{rows}\n"
+    )
+
+
+def publish(
+    out_dir: Path,
+    *,
+    tag: str | None = None,
+    lock_path: Path = LOCK_PATH,
+    run=_run,
+) -> int:
+    """Upload the snapshot in ``out_dir`` as a GitHub Release and rewrite the lock file."""
+    manifest_path = out_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        print(f"build_snapshot: no snapshot to publish in {out_dir}", file=sys.stderr)
+        return 1
+    manifest = json.loads(manifest_path.read_text())
+    tag = tag or f"snapshot-{manifest['built_at'][:10].replace('-', '')}"
+    if not tag.startswith("snapshot-"):
+        print("build_snapshot: the tag must start with 'snapshot-'", file=sys.stderr)
+        return 2
+    version = tag.removeprefix("snapshot-")
+    asset = f"glendale-gis-snapshot-{version}.zip"
+
+    if run(["gh", "release", "view", tag, "--repo", REPO]).returncode == 0:
+        print(
+            f"build_snapshot: release {tag} already exists. Use --tag {tag}-2 (or later) to "
+            "publish another snapshot the same day.",
+            file=sys.stderr,
+        )
+        return 1
+
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / asset
+        zip_snapshot(out_dir, archive)
+        data = archive.read_bytes()
+        sha256, size = hashlib.sha256(data).hexdigest(), len(data)
+        lock = Lock.from_dict(
+            {
+                "version": version,
+                "url": f"{RELEASE_URL_PREFIX}{tag}/{asset}",
+                "sha256": sha256,
+                "size": size,
+            }
+        )
+        created = run(
+            [
+                "gh", "release", "create", tag, str(archive),
+                "--repo", REPO,
+                "--title", f"Data snapshot {version}",
+                "--notes", release_notes(manifest, sha256, size),
+            ]
+        )  # fmt: skip
+        if created.returncode != 0:
+            print(
+                f"build_snapshot: gh release create failed: {created.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return 1
+
+    lock_path.write_text(
+        json.dumps(
+            {
+                "version": lock.version,
+                "url": lock.url,
+                "sha256": lock.sha256,
+                "size": lock.size,
+                "tag": tag,
+                "built_at": manifest["built_at"],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    print(f"Published {tag} ({size / 1e6:.1f} MB): {lock.url}")
+    print(f"Updated {lock_path.name}. Commit it so installed copies download this snapshot.")
+    return 0
+
+
+# --------------------------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------------------------
 
@@ -507,6 +631,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out", type=Path, default=DEFAULT_OUT, help=f"output directory (default: {DEFAULT_OUT})"
     )
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="after building, upload the snapshot as a GitHub Release and update "
+        f"{LOCK_NAME} (needs the gh CLI, logged in with access to {REPO})",
+    )
+    parser.add_argument(
+        "--no-build", action="store_true", help="with --publish: publish the existing --out"
+    )
+    parser.add_argument(
+        "--tag", help="with --publish: release tag (default: snapshot-<build date>)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="log every request")
     return parser
 
@@ -522,11 +658,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"build_snapshot: {exc}", file=sys.stderr)
         return 2
-    try:
-        return asyncio.run(build(settings, args.out, only=args.only, dry_run=args.dry_run))
-    except (ArcGISError, BuildError, geo.GeometryError) as exc:
-        print(f"build_snapshot: {exc}", file=sys.stderr)
-        return 1
+    if (args.no_build or args.tag) and not args.publish:
+        print("build_snapshot: --no-build and --tag only work with --publish", file=sys.stderr)
+        return 2
+    if args.publish and args.dry_run:
+        print("build_snapshot: --publish can't be combined with --dry-run", file=sys.stderr)
+        return 2
+    if args.publish and shutil.which("gh") is None:
+        print("build_snapshot: --publish needs the GitHub CLI (gh)", file=sys.stderr)
+        return 2
+    if not args.no_build:
+        try:
+            code = asyncio.run(build(settings, args.out, only=args.only, dry_run=args.dry_run))
+        except (ArcGISError, BuildError, geo.GeometryError) as exc:
+            print(f"build_snapshot: {exc}", file=sys.stderr)
+            return 1
+        if code != 0 or not args.publish:
+            return code
+    return publish(args.out, tag=args.tag)
 
 
 if __name__ == "__main__":

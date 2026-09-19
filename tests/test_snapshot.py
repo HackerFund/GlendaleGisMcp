@@ -1,15 +1,12 @@
 import json
-from pathlib import Path
 
 import pytest
 
 import fixture_snapshot as fx
-from glendale_gis.core.config import Settings
 from glendale_gis.core.snapshot import (
     LayerUnavailable,
     Snapshot,
     SnapshotError,
-    default_snapshot_path,
     local_point,
 )
 
@@ -98,10 +95,3 @@ def test_refs_carry_global_ids_when_the_layer_has_them(snap):
     assert ref.global_id == "{00000010}"
     assert ref.layer_url == flood.layer_url
     assert snap.layer("fire_stations").ref(0).global_id is None
-
-
-def test_default_snapshot_path():
-    settings = Settings.from_env({"GLENDALE_GIS_CACHE_DIR": "/tmp/gg"})
-    assert default_snapshot_path(settings) == Path("/tmp/gg/snapshot")
-    settings = Settings.from_env({"GLENDALE_GIS_SNAPSHOT_PATH": "/data/snap"})
-    assert default_snapshot_path(settings) == Path("/data/snap")

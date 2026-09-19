@@ -23,6 +23,7 @@ from glendale_gis.core import datasets, hazards, resources
 from glendale_gis.core.arcgis import ArcGISClient
 from glendale_gis.core.cache import Cache
 from glendale_gis.core.config import Settings
+from glendale_gis.core.distribution import ensure_snapshot
 from glendale_gis.core.docs import read_doc
 from glendale_gis.core.geocode import Geocoder
 from glendale_gis.core.models import (
@@ -41,7 +42,7 @@ from glendale_gis.core.models import (
     SeismicZones,
 )
 from glendale_gis.core.query import DEFAULT_LIMIT, MAX_LIMIT, QueryEngine
-from glendale_gis.core.snapshot import Snapshot, SnapshotError, default_snapshot_path
+from glendale_gis.core.snapshot import Snapshot, SnapshotError
 
 log = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ class AppState:
     cache: Cache
     geocoder: Geocoder | None
     engine: QueryEngine | None
+    snapshot_source: str = "provided"  # configured, cache, downloaded, previous, none
 
     def require_snapshot(self) -> tuple[Snapshot, Geocoder, QueryEngine]:
         if self.snapshot is None or self.geocoder is None or self.engine is None:
@@ -129,20 +131,25 @@ class AppState:
 
 
 def build_state(settings: Settings, snapshot: Snapshot | None = None) -> AppState:
+    """Shared state for the tools. Without a snapshot given, find or download the published one."""
     error = None
+    source = "provided"
     if snapshot is None:
-        try:
-            snapshot = Snapshot.load(default_snapshot_path(settings))
-        except SnapshotError as exc:
-            error = str(exc)
-            log.error("Snapshot unavailable: %s", exc)
+        resolved = ensure_snapshot(settings)
+        source, error = resolved.source, resolved.error
+        if resolved.path is not None:
+            try:
+                snapshot = Snapshot.load(resolved.path, stale=resolved.stale)
+            except SnapshotError as exc:
+                error = str(exc)
+                log.error("Snapshot unavailable: %s", exc)
     cache = Cache(settings.cache_dir / "cache.sqlite3")
     client = ArcGISClient(settings)
     geocoder = engine = None
     if snapshot is not None:
         geocoder = Geocoder(client, cache, snapshot, settings)
         engine = QueryEngine(snapshot, client, cache, settings)
-    return AppState(settings, snapshot, error, client, cache, geocoder, engine)
+    return AppState(settings, snapshot, error, client, cache, geocoder, engine, source)
 
 
 # --------------------------------------------------------------------------------------------
@@ -316,6 +323,11 @@ def overview_markdown(state: AppState, tools: list[tuple[str, str]]) -> str:
             f"Offline snapshot built {state.snapshot.built_at or 'at an unknown time'}. "
             f"Layers unavailable: {missing}."
         )
+        if state.snapshot.stale:
+            data_line += (
+                f" **This is an older snapshot** because the current one couldn't be downloaded "
+                f"({state.snapshot_error}); results are marked stale."
+            )
     else:
         data_line = f"**The data snapshot isn't available:** {state.snapshot_error}"
     tool_rows = "\n".join(f"| `{name}` | {_first_sentence(text)} |" for name, text in tools)

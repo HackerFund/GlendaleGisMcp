@@ -18,7 +18,7 @@ Background:
 
 ## Status
 
-**Phases 0–5 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Phase 5 added the geocoder (`core/geocode.py`), the disk cache (`core/cache.py`), structured queries (`core/query.py`), `core/datasets.py`, and all 11 MCP tools in `server.py`. Next: Phase 6 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–6 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Phase 5 added the geocoder (`core/geocode.py`), the disk cache (`core/cache.py`), structured queries (`core/query.py`), `core/datasets.py`, and all 11 MCP tools in `server.py`. Phase 6 added snapshot distribution: `core/distribution.py` (download, verify, cache, fallback), `build_snapshot.py --publish`, `glendale-gis-mcp --fetch-snapshot` and the committed `snapshot.lock.json`. Next: Phase 7 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -30,6 +30,8 @@ Background:
   - Lint: `ruff check .`
   - Format: `ruff format .` (`Plans/` is excluded so research notes aren't rewritten)
   - Run the server: `glendale-gis-mcp` (stdio) or `glendale-gis-mcp --http [--host H] [--port P]`
+  - Download and verify the published snapshot: `glendale-gis-mcp --fetch-snapshot`
+  - Publish a new snapshot: `python scripts/build_snapshot.py --publish` (builds, uploads a GitHub Release with `gh`, rewrites `snapshot.lock.json`; then commit the lock). `--no-build` publishes the existing `snapshot/`; `--tag snapshot-YYYYMMDD-2` for a second release the same day.
   - Build the snapshot: `python scripts/build_snapshot.py [--only ID,...] [--dry-run] [--out DIR]` (hits live servers; about 1.5 minutes). Output goes to `snapshot/`, which is gitignored.
 - All settings are `GLENDALE_GIS_<FIELD>` environment variables matching the fields in `core/config.py` (e.g. `GLENDALE_GIS_HAZARD_BUFFER_M`, `GLENDALE_GIS_CONTACT`, `GLENDALE_GIS_SNAPSHOT_PATH`). Unset or empty values keep defaults; invalid values raise `ConfigError`.
 
