@@ -47,19 +47,19 @@ Most data comes from an offline snapshot of the public ArcGIS services (about 35
 
 ## Try it
 
-You need Python 3.10 or later. On first run the server downloads the data snapshot (about 6 MB) from this repository's releases, checks its SHA-256, and caches it.
+You need Python 3.10 or later. On first run the server downloads the data snapshot (about 6 MB) from this repository's releases, checks its SHA-256, and caches it. Pick one of the two ways to install it.
 
-**With [uv](https://docs.astral.sh/uv/)** (recommended; nothing to install permanently):
+### Option A: uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) runs the server without a permanent install:
 
 ```sh
 uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp --fetch-snapshot
 ```
 
-That downloads and verifies the snapshot, then exits, so your client doesn't wait for it later. **With pip:** `pip install git+https://github.com/HackerFund/GlendaleGisMcp`, then run `glendale-gis-mcp --fetch-snapshot`.
+That downloads and verifies the snapshot, then exits, so your client doesn't wait for it later.
 
-Then add the server to your client:
-
-**Claude Desktop:** in `claude_desktop_config.json` (Settings → Developer → Edit Config), then quit and reopen Claude Desktop. Use the full path to `uvx` (`which uvx`), since Claude Desktop doesn't see your shell's `PATH`:
+**Claude Desktop:** in `claude_desktop_config.json` (Settings → Developer → Edit Config), then quit and reopen Claude Desktop. Use the full path to `uvx` (find it with `which uvx`), since Claude Desktop doesn't see your shell's `PATH`:
 
 ```json
 {
@@ -78,9 +78,49 @@ Then add the server to your client:
 claude mcp add glendale-gis -- uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
 ```
 
-Then ask, for example: "Is 613 E Broadway in Glendale in a flood zone?" or "What's the nearest fire station to 1000 W Glenoaks Blvd?"
+### Option B: pip
 
-**From source** (to change the code):
+Install into a virtual environment of its own:
+
+```sh
+python3 -m venv ~/glendale-gis-mcp
+source ~/glendale-gis-mcp/bin/activate        # Windows: %USERPROFILE%\glendale-gis-mcp\Scripts\activate
+pip install git+https://github.com/HackerFund/GlendaleGisMcp
+glendale-gis-mcp --fetch-snapshot              # download and verify the data
+```
+
+The server command is then `~/glendale-gis-mcp/bin/glendale-gis-mcp` (Windows: `%USERPROFILE%\glendale-gis-mcp\Scripts\glendale-gis-mcp.exe`). Clients need its full path; `echo ~/glendale-gis-mcp/bin/glendale-gis-mcp` shows it.
+
+**Claude Desktop:**
+
+```json
+{
+  "mcpServers": {
+    "glendale-gis": {
+      "command": "/Users/you/glendale-gis-mcp/bin/glendale-gis-mcp"
+    }
+  }
+}
+```
+
+**Claude Code:**
+
+```sh
+claude mcp add glendale-gis -- ~/glendale-gis-mcp/bin/glendale-gis-mcp
+```
+
+To update later, force a reinstall (the version number doesn't change between commits, so a plain upgrade may skip it):
+
+```sh
+pip install --force-reinstall --no-deps git+https://github.com/HackerFund/GlendaleGisMcp
+```
+
+### Try a question
+
+Ask, for example: "Is 613 E Broadway in Glendale in a flood zone?" or "What's the nearest fire station to 1000 W Glenoaks Blvd?" Ask "What can the Glendale GIS server do?" for a tour.
+
+### From source (to change the code)
+
 
 ```sh
 git clone https://github.com/HackerFund/GlendaleGisMcp.git && cd GlendaleGisMcp
