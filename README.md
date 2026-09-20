@@ -47,19 +47,52 @@ Most data comes from an offline snapshot of the public ArcGIS services (about 35
 
 ## Try it
 
-You need Python 3.10 or later. On first run the server downloads the data snapshot (about 6 MB) from this repository's releases, checks its SHA-256, and caches it. Pick one of the two ways to install it.
+You need Python 3.10 or later. On first run the server downloads the data snapshot (about 6 MB) from this repository's releases, checks its SHA-256, and caches it. Install it one of two ways, then connect your assistant below.
 
 ### Option A: uv (recommended)
 
-[uv](https://docs.astral.sh/uv/) runs the server without a permanent install:
+[uv](https://docs.astral.sh/uv/) runs the server straight from GitHub, with nothing to install permanently:
 
 ```sh
 uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp --fetch-snapshot
 ```
 
-That downloads and verifies the snapshot, then exits, so your client doesn't wait for it later.
+That downloads and verifies the data, then exits, so your assistant doesn't wait for it later. The command to give your assistant is:
 
-**Claude Desktop:** in `claude_desktop_config.json` (Settings → Developer → Edit Config), then quit and reopen Claude Desktop. Use the full path to `uvx` (find it with `which uvx`), since Claude Desktop doesn't see your shell's `PATH`:
+```
+uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
+```
+
+### Option B: pip
+
+```sh
+python3 -m venv ~/glendale-gis-mcp
+source ~/glendale-gis-mcp/bin/activate        # Windows: %USERPROFILE%\glendale-gis-mcp\Scripts\activate
+pip install git+https://github.com/HackerFund/GlendaleGisMcp
+glendale-gis-mcp --fetch-snapshot              # download and verify the data
+```
+
+The command to give your assistant is the full path `~/glendale-gis-mcp/bin/glendale-gis-mcp` (Windows: `%USERPROFILE%\glendale-gis-mcp\Scripts\glendale-gis-mcp.exe`). To update later, force a reinstall, since the version number doesn't change between commits:
+
+```sh
+pip install --force-reinstall --no-deps git+https://github.com/HackerFund/GlendaleGisMcp
+```
+
+## Connect your AI assistant
+
+The examples use the uv command. With pip, swap it for the full path to `glendale-gis-mcp` and drop the `--from …` arguments.
+
+### Claude Code
+
+```sh
+claude mcp add glendale-gis -- uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
+```
+
+Check it with `claude mcp list`. (With pip: `claude mcp add glendale-gis -- ~/glendale-gis-mcp/bin/glendale-gis-mcp`.)
+
+### Claude Desktop
+
+Open Settings → Developer → Edit Config, add the entry below, then **quit Claude Desktop with ⌘Q and reopen it**. Use the full path to `uvx` (`which uvx`), because Claude Desktop doesn't see your shell's `PATH`:
 
 ```json
 {
@@ -72,54 +105,51 @@ That downloads and verifies the snapshot, then exits, so your client doesn't wai
 }
 ```
 
-**Claude Code:**
+With pip, use `"command": "/Users/you/glendale-gis-mcp/bin/glendale-gis-mcp"` and no `args`.
 
-```sh
-claude mcp add glendale-gis -- uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
-```
+uv caches the code it downloaded, so a restart alone may keep an older commit. To always check GitHub, add `"--refresh"` as the first item in `args`. To pin a version for the event, put a tag or commit on the URL: `git+https://github.com/HackerFund/GlendaleGisMcp@<tag>`.
 
-### Option B: pip
+### Gemini CLI
 
-Install into a virtual environment of its own:
-
-```sh
-python3 -m venv ~/glendale-gis-mcp
-source ~/glendale-gis-mcp/bin/activate        # Windows: %USERPROFILE%\glendale-gis-mcp\Scripts\activate
-pip install git+https://github.com/HackerFund/GlendaleGisMcp
-glendale-gis-mcp --fetch-snapshot              # download and verify the data
-```
-
-The server command is then `~/glendale-gis-mcp/bin/glendale-gis-mcp` (Windows: `%USERPROFILE%\glendale-gis-mcp\Scripts\glendale-gis-mcp.exe`). Clients need its full path; `echo ~/glendale-gis-mcp/bin/glendale-gis-mcp` shows it.
-
-**Claude Desktop:**
+Add this to `~/.gemini/settings.json` (or `.gemini/settings.json` in a project), then restart the CLI:
 
 ```json
 {
   "mcpServers": {
     "glendale-gis": {
-      "command": "/Users/you/glendale-gis-mcp/bin/glendale-gis-mcp"
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/HackerFund/GlendaleGisMcp", "glendale-gis-mcp"]
     }
   }
 }
 ```
 
-**Claude Code:**
+The Gemini CLI also has `gemini mcp add <name> <command> [args...]`; put `--` before the command so its own flags aren't confused with uv's. See [Google's MCP documentation](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html) for the current syntax. Use `/mcp` inside the CLI to list connected servers.
+
+### ChatGPT
+
+**ChatGPT can't run this server today.** Its custom connectors only reach *remote* MCP servers over HTTPS, so a local install like the above isn't an option, and its connectors authenticate with OAuth or no authentication, [per OpenAI's documentation](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt). Our hosted server (coming for the event) uses a shared key sent as an HTTP header, which ChatGPT doesn't send.
+
+Custom connectors also need Developer Mode (Settings → Apps → Advanced) and a paid plan.
+
+If you want to use ChatGPT, the options are:
+- Use Claude, the Gemini CLI or another MCP client for the data, and ChatGPT for the rest of your build.
+- Ask the organizers for an open (no-key) endpoint for your team.
+- Call the `core` package directly from your own Python code, or query the [source ArcGIS services](docs/snapshot-data.md) yourself, and pass results to ChatGPT.
+
+### Other clients
+
+Cursor, VS Code, Zed, Windsurf and most other MCP clients take the same command and arguments; check their docs for where the config lives. To poke at the server by hand:
 
 ```sh
-claude mcp add glendale-gis -- ~/glendale-gis-mcp/bin/glendale-gis-mcp
-```
-
-To update later, force a reinstall (the version number doesn't change between commits, so a plain upgrade may skip it):
-
-```sh
-pip install --force-reinstall --no-deps git+https://github.com/HackerFund/GlendaleGisMcp
+npx @modelcontextprotocol/inspector uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
 ```
 
 ### Try a question
 
 Ask, for example: "Is 613 E Broadway in Glendale in a flood zone?" or "What's the nearest fire station to 1000 W Glenoaks Blvd?" Ask "What can the Glendale GIS server do?" for a tour.
 
-### From source (to change the code)
+## From source (to change the code)
 
 
 ```sh
