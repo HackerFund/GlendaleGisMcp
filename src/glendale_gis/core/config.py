@@ -50,7 +50,15 @@ class Settings:
     # Hosted (streamable HTTP) mode.
     http_host: str = "127.0.0.1"
     http_port: int = 8000
-    api_key: str | None = None
+    # Shared secret(s) callers send as "Authorization: Bearer <key>". Comma-separated, so keys
+    # can be rotated with an overlap. Required when binding to anything but localhost.
+    api_keys: tuple[str, ...] = ()
+    # Host and Origin headers allowed in hosted mode (DNS-rebinding protection). Empty turns the
+    # check off, which is fine on localhost. Set the Cloud Run hostname when deployed.
+    http_allowed_hosts: tuple[str, ...] = ()
+    http_allowed_origins: tuple[str, ...] = ()
+    rate_limit_per_minute: int = 120  # per API key, or per client IP; 0 turns it off
+    max_request_bytes: int = 4 * 1024 * 1024
 
     def __post_init__(self) -> None:
         for name in ("city_buffer_m", "hazard_buffer_m"):
@@ -72,8 +80,17 @@ class Settings:
             raise ConfigError("max_retries must be >= 0")
         if not 1 <= self.http_port <= 65535:
             raise ConfigError("http_port must be between 1 and 65535")
+        if self.rate_limit_per_minute < 0:
+            raise ConfigError("rate_limit_per_minute must be >= 0")
+        if self.max_request_bytes < 1024:
+            raise ConfigError("max_request_bytes must be at least 1024")
         if not self.contact.strip():
             raise ConfigError("contact must not be empty")
+
+    @property
+    def is_public_bind(self) -> bool:
+        """True when the HTTP server listens on more than the local machine."""
+        return self.http_host not in ("127.0.0.1", "localhost", "::1")
 
     @property
     def user_agent(self) -> str:
@@ -102,7 +119,14 @@ _FLOAT_FIELDS = {
     "geocode_cache_ttl_s",
     "live_cache_ttl_s",
 }
-_INT_FIELDS = {"max_concurrency_per_host", "max_retries", "http_port"}
+_INT_FIELDS = {
+    "max_concurrency_per_host",
+    "max_retries",
+    "http_port",
+    "rate_limit_per_minute",
+    "max_request_bytes",
+}
+_TUPLE_FIELDS = {"api_keys", "http_allowed_hosts", "http_allowed_origins"}
 _PATH_FIELDS = {"cache_dir", "snapshot_path"}
 
 
@@ -116,4 +140,6 @@ def _parse(var: str, name: str, raw: str) -> object:
         raise ConfigError(f"{var} must be a number, got {raw!r}") from None
     if name in _PATH_FIELDS:
         return Path(raw).expanduser()
+    if name in _TUPLE_FIELDS:
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
     return raw

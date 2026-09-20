@@ -256,7 +256,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 
 ---
 
-## Phase 7 — HTTP transport and Cloud Run
+## Phase 7 — HTTP transport and Cloud Run ⏳ Built and tested locally (September 20, 2026); deploy pending
 
 - `--http` flag: stateless streamable HTTP, host/port from config.
 - `/health` endpoint (reports snapshot version and load state).
@@ -268,6 +268,17 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - Short deploy notes in `Plans/` or the README.
 
 **Done when:** a remote MCP client connects to the Cloud Run URL and runs every tool; a load test with a few hundred requests shows the throttle holding.
+
+**Result so far:**
+- **`src/glendale_gis/http.py`:** the MCP endpoint at `/mcp` (stateless), an open `/health`, bearer-key auth, per-key rate limiting, and the SDK's Host/Origin checks and request size limit.
+- **`/health`** reports the snapshot's build date, where it came from, whether it's stale, and which layers are missing. It says `degraded` rather than failing, so a probe doesn't restart a usable instance.
+- **Auth:** `Authorization: Bearer <key>` against `GLENDALE_GIS_API_KEYS` (comma-separated, so keys can be rotated with an overlap), compared with `hmac.compare_digest`. The server refuses to start on a public address without a key.
+- **Rate limiting:** a sliding minute per key, falling back to the client IP (first entry of `X-Forwarded-For`). `/health` is exempt. Counted per instance, which is fine with `--max-instances 4`.
+- **Cloud Run files:** `Procfile`, `requirements.txt` (buildpacks install the project) and `.gcloudignore`. `PORT` is honored.
+- **`docs/deploy.md`:** setup, the deploy command, locking the Host header after the URL exists, checks, key rotation, publishing fresh data, shutdown and troubleshooting.
+- **Live check:** a real MCP client connected over HTTP with a bearer key, listed 12 tools and ran `hazards_at_location` and `geocode_address`. A wrong key and a missing key both returned 401; the rate limit returned 429 with `Retry-After`. Neither the key nor any address appeared in the logs.
+- **Tests:** 16 new, 339 in total.
+- **Not done:** the deploy itself, and the load test. Both need the GCP project and region.
 
 ---
 

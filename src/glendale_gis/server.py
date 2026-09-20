@@ -676,13 +676,23 @@ def create_server(settings: Settings, state: AppState | None = None) -> MCPServe
 
 
 def run(settings: Settings, *, http: bool = False) -> None:
-    server = create_server(settings)
-    if http:
-        server.run(
-            "streamable-http",
-            host=settings.http_host,
-            port=settings.http_port,
-            stateless_http=True,
-        )
-    else:
+    """Serve over stdio, or over streamable HTTP with the hosted protections."""
+    state = build_state(settings)
+    server = create_server(settings, state)
+    if not http:
         server.run("stdio")
+        return
+
+    import uvicorn
+
+    from glendale_gis.http import MCP_PATH, build_app
+
+    app = build_app(settings, server, state)
+    log.info(
+        "Serving MCP on http://%s:%s%s (auth: %s)",
+        settings.http_host,
+        settings.http_port,
+        MCP_PATH,
+        f"{len(settings.api_keys)} key(s)" if settings.api_keys else "none",
+    )
+    uvicorn.run(app, host=settings.http_host, port=settings.http_port, access_log=False)

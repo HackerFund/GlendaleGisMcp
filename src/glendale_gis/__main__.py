@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import os
 import sys
 from collections.abc import Sequence
 
@@ -41,22 +42,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         settings = Settings.from_env()
+        # Cloud Run and similar hosts pass the port in PORT.
+        hosted_port = (
+            os.environ.get("PORT") if not os.environ.get("GLENDALE_GIS_HTTP_PORT") else None
+        )
         overrides = {
             k: v
-            for k, v in {"http_host": args.host, "http_port": args.port}.items()
+            for k, v in {
+                "http_host": args.host,
+                "http_port": args.port or (int(hosted_port) if hosted_port else None),
+            }.items()
             if v is not None
         }
         if overrides:
             settings = dataclasses.replace(settings, **overrides)
-    except ConfigError as exc:
+    except (ConfigError, ValueError) as exc:
         print(f"glendale-gis-mcp: configuration error: {exc}", file=sys.stderr)
         return 2
 
     if args.fetch_snapshot:
         return fetch_snapshot(settings)
 
+    from glendale_gis.http import check_hosted_settings
     from glendale_gis.server import run  # imported late so --help and --version stay fast
 
+    if args.http:
+        try:
+            check_hosted_settings(settings)
+        except ConfigError as exc:
+            print(f"glendale-gis-mcp: {exc}", file=sys.stderr)
+            return 2
     run(settings, http=args.http)
     return 0
 

@@ -18,7 +18,7 @@ Background:
 
 ## Status
 
-**Phases 0–6 are complete.** Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Phase 5 added the geocoder (`core/geocode.py`), the disk cache (`core/cache.py`), structured queries (`core/query.py`), `core/datasets.py`, and all 11 MCP tools in `server.py`. Phase 6 added snapshot distribution: `core/distribution.py` (download, verify, cache, fallback), `build_snapshot.py --publish`, `glendale-gis-mcp --fetch-snapshot` and the committed `snapshot.lock.json`. Next: Phase 7 of `Plans/implementation-plan.md`. Update this section as phases complete.
+**Phases 0–7 are complete except the Cloud Run deploy** (it needs a GCP project and region). Phase 0 findings are in `Plans/hazard-sources.md` and `Plans/city-sources.md`. Phase 1 set up the package skeleton, settings (`core/config.py`), CLI and an MCP server with no tools yet. Phase 2 added the dataset catalog (`core/catalog.py`) and the ArcGIS client (`core/arcgis.py`). Phase 3 added the snapshot builder (`scripts/build_snapshot.py`) and geometry helpers (`core/geo.py`). Phase 4 added offline lookups: `core/snapshot.py`, `core/hazards.py`, `core/resources.py` and `core/models.py`. Phase 5 added the geocoder (`core/geocode.py`), the disk cache (`core/cache.py`), structured queries (`core/query.py`), `core/datasets.py`, and all 11 MCP tools in `server.py`. Phase 6 added snapshot distribution: `core/distribution.py` (download, verify, cache, fallback), `build_snapshot.py --publish`, `glendale-gis-mcp --fetch-snapshot` and the committed `snapshot.lock.json`. Phase 7 added the hosted HTTP app (`http.py`: `/health`, shared-secret auth, rate limiting, Host/Origin checks), the Cloud Run files (`Procfile`, `requirements.txt`, `.gcloudignore`) and `docs/deploy.md`. Next: the deploy itself, then Phase 8 of `Plans/implementation-plan.md`. Update this section as phases complete.
 
 ## Environment
 
@@ -29,7 +29,7 @@ Background:
   - Tests: `pytest`
   - Lint: `ruff check .`
   - Format: `ruff format .` (`Plans/` is excluded so research notes aren't rewritten)
-  - Run the server: `glendale-gis-mcp` (stdio) or `glendale-gis-mcp --http [--host H] [--port P]`
+  - Run the server: `glendale-gis-mcp` (stdio) or `glendale-gis-mcp --http [--host H] [--port P]`. Hosted mode needs `GLENDALE_GIS_API_KEYS` unless it binds to localhost; MCP is at `/mcp` and `/health` is open.
   - Download and verify the published snapshot: `glendale-gis-mcp --fetch-snapshot`
   - Publish a new snapshot: `python scripts/build_snapshot.py --publish` (builds, uploads a GitHub Release with `gh`, rewrites `snapshot.lock.json`; then commit the lock). `--no-build` publishes the existing `snapshot/`; `--tag snapshot-YYYYMMDD-2` for a second release the same day.
   - Build the snapshot: `python scripts/build_snapshot.py [--only ID,...] [--dry-run] [--out DIR]` (hits live servers; about 1.5 minutes). Output goes to `snapshot/`, which is gitignored.
@@ -187,7 +187,7 @@ tests/fixtures/             # recorded ArcGIS responses
 - **Stateless** streamable HTTP, so instances are interchangeable.
 - Load the snapshot into memory at startup. Keep **min instances = 1 during the event** to avoid slow cold starts; scale to zero otherwise.
 - All config from environment variables, with local-friendly defaults (port, cache location, User-Agent contact, rate limits, API key).
-- Hosted protections: per-client rate limiting, request size and result limits, CORS settings, `/health` endpoint, and a capped `--max-instances` so abuse has a fixed cost ceiling.
+- Hosted protections (in `http.py`): per-key (or per-IP) rate limiting, request size limit, Host/Origin checks from the MCP SDK, an open `/health` endpoint, and a capped `--max-instances` so abuse has a fixed cost ceiling. Deploy steps are in `docs/deploy.md`.
 - **Access control: one shared hackathon secret** (`GLENDALE_GIS_API_KEY`), distributed to participants through the event channel.
   - Required whenever `--http` binds to anything other than localhost: the server refuses to start without it. Not used for stdio or `--http` on `127.0.0.1`.
   - Accepted **only** as `Authorization: Bearer <key>`, never in a query string. Compare with `hmac.compare_digest`. Missing or wrong key → `401` with a short message, no detail.

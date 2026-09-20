@@ -26,6 +26,7 @@ def test_bad_config_returns_error_code(monkeypatch, capsys):
 
 def test_cli_overrides_host_and_port(monkeypatch):
     captured = {}
+    monkeypatch.setenv("GLENDALE_GIS_API_KEYS", "shared-secret")
     monkeypatch.setattr(
         "glendale_gis.server.run",
         lambda settings, http: captured.update(settings=settings, http=http),

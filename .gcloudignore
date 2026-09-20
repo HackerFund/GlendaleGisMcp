@@ -1,0 +1,12 @@
+# Not needed to build or run the server on Cloud Run.
+.git/
+.gitignore
+.venv/
+snapshot/
+Plans/
+tests/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.DS_Store
