@@ -157,7 +157,7 @@ Custom connectors also need Developer Mode (Settings → Apps → Advanced) and 
 If you want to use ChatGPT, the options are:
 - Use Claude, the Gemini CLI or another MCP client for the data, and ChatGPT for the rest of your build.
 - Ask the organizers for an open (no-key) endpoint for your team.
-- Call the `core` package directly from your own Python code, or query the [source ArcGIS services](docs/snapshot-data.md) yourself, and pass results to ChatGPT.
+- Call the `core` package directly from your own Python code (see [Development](#development)) and pass the results to ChatGPT.
 
 ### Other clients
 

@@ -140,6 +140,8 @@ Each entry in `layers`:
 
 To fetch the full, current record for any feature, query its `layer_url` for its object ID, for example `<layer_url>/query?objectIds=1&outFields=*&outSR=4326&f=json`.
 
+That's for the occasional single record. Please don't bulk-query the agency servers: the snapshot exists so their servers aren't hammered, and the MCP tools already cover queries across a whole layer.
+
 ## The layers
 
 Counts and sizes are from the build of September 18, 2026. `manifest.json` has the current numbers.
