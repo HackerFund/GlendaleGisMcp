@@ -78,9 +78,31 @@ The command to give your assistant is the full path `~/glendale-gis-mcp/bin/glen
 pip install --force-reinstall --no-deps git+https://github.com/HackerFund/GlendaleGisMcp
 ```
 
+### Option C: clone this repository
+
+Run the code from a checkout, which is also what you want if you plan to change it:
+
+```sh
+git clone https://github.com/HackerFund/GlendaleGisMcp.git
+cd GlendaleGisMcp
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .                               # add ".[dev]" for the tests
+glendale-gis-mcp --fetch-snapshot              # download and verify the data
+```
+
+The command to give your assistant is the absolute path printed by `echo $PWD/.venv/bin/glendale-gis-mcp`.
+
+To pull updates later: `git pull`, then `pip install -e .` again if the dependencies changed. To build your own snapshot instead of using the published one (about 1.5 minutes, and it queries the live agency servers):
+
+```sh
+python scripts/build_snapshot.py
+export GLENDALE_GIS_SNAPSHOT_PATH=$PWD/snapshot
+```
+
 ## Connect your AI assistant
 
-The examples use the uv command. With pip, swap it for the full path to `glendale-gis-mcp` and drop the `--from …` arguments.
+
+The examples use the uv command. With pip or a clone, swap it for the full path to `glendale-gis-mcp` and drop the `--from …` arguments.
 
 ### Claude Code
 
@@ -145,21 +167,65 @@ Cursor, VS Code, Zed, Windsurf and most other MCP clients take the same command 
 npx @modelcontextprotocol/inspector uvx --from git+https://github.com/HackerFund/GlendaleGisMcp glendale-gis-mcp
 ```
 
+### Hosted server (Google Cloud Run)
+
+> **Not up yet.** The organizers will publish the URL and the shared key before the event, and this section will be filled in. Until then, use one of the local options above. Deployment steps are in [docs/deploy.md](docs/deploy.md).
+
+When it's live, teams will be able to use the hosted server instead of installing anything. It speaks streamable HTTP at `<URL>/mcp` and needs the shared key on every request.
+
+- **URL:** `https://TBD.run.app/mcp`
+- **Key:** shared at the event (`Authorization: Bearer <key>`)
+- **Health check (no key needed):** `curl https://TBD.run.app/health`
+
+**Claude Code:**
+
+```sh
+claude mcp add --transport http glendale-gis https://TBD.run.app/mcp \
+  --header "Authorization: Bearer <key>"
+```
+
+**Gemini CLI** (`~/.gemini/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "glendale-gis": {
+      "httpUrl": "https://TBD.run.app/mcp",
+      "headers": { "Authorization": "Bearer <key>" }
+    }
+  }
+}
+```
+
+Check [Google's MCP documentation](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html) for the current field names.
+
+**Claude Desktop and ChatGPT** can't send a custom header to a remote MCP server, so they can't use the hosted endpoint with a key. Use a local install for those.
+
+Keep the key out of anything you publish: no screenshots, no commits, no Devpost submissions.
+
 ### Try a question
 
 Ask, for example: "Is 613 E Broadway in Glendale in a flood zone?" or "What's the nearest fire station to 1000 W Glenoaks Blvd?" Ask "What can the Glendale GIS server do?" for a tour.
 
-## From source (to change the code)
+## Development
 
+Clone it as in [Option C](#option-c-clone-this-repository), install with `pip install -e ".[dev]"`, then:
 
 ```sh
-git clone https://github.com/HackerFund/GlendaleGisMcp.git && cd GlendaleGisMcp
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+pytest                  # 339 tests; none of them touch the network
+ruff check . && ruff format .
 ```
 
-The published snapshot is used by default. To build your own (about 1.5 minutes; it queries the live agency servers), run `python scripts/build_snapshot.py` and point the server at it with `GLENDALE_GIS_SNAPSHOT_PATH=$PWD/snapshot`.
+`AGENTS.md` holds the project's rules and design decisions, and `Plans/` has the research notes and the phased plan. The `core` package has no MCP imports, so you can use it as a plain Python library:
+
+```python
+from glendale_gis.core.snapshot import Snapshot
+from glendale_gis.core import hazards
+
+snap = Snapshot.load("snapshot")                    # or the downloaded copy in your cache
+result = hazards.hazards_at_location(snap, hazards.locate(snap, 34.1466, -118.2483))
+print(result.wildfire.status, result.flood.matches[0].attributes["FLD_ZONE"])
+```
 
 ## Docs
 
