@@ -10,3 +10,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+
+# Local-only files: deployment notes (project details) and unrelated tooling.
+docs/*.local.md
+elevenLabs/
