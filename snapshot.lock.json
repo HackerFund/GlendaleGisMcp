@@ -1,8 +1,8 @@
 {
-  "version": "20260918",
-  "url": "https://github.com/HackerFund/GlendaleGisMcp/releases/download/snapshot-20260918/glendale-gis-snapshot-20260918.zip",
-  "sha256": "183b93e96643df6eb8caf58cf5af10f3b7c0aabc39d8db7fb81d160ec5e8cf55",
-  "size": 5852219,
-  "tag": "snapshot-20260918",
-  "built_at": "2026-09-18T19:45:16+00:00"
+  "version": "20260926",
+  "url": "https://github.com/HackerFund/GlendaleGisMcp/releases/download/snapshot-20260926/glendale-gis-snapshot-20260926.zip",
+  "sha256": "8bf920799636f6d92977049488cf6bd550a82eed47f75a0aa4f561a0d9facf92",
+  "size": 5852228,
+  "tag": "snapshot-20260926",
+  "built_at": "2026-09-26T02:33:13+00:00"
 }

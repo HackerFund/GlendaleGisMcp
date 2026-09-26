@@ -150,7 +150,7 @@ The Gemini CLI also has `gemini mcp add <name> <command> [args...]`; put `--` be
 
 ### ChatGPT
 
-**ChatGPT can't run this server today.** Its custom connectors only reach *remote* MCP servers over HTTPS, so a local install like the above isn't an option, and its connectors authenticate with OAuth or no authentication, [per OpenAI's documentation](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt). Our hosted server (coming for the event) uses a shared key sent as an HTTP header, which ChatGPT doesn't send.
+**ChatGPT can't run this server today.** Its custom connectors only reach *remote* MCP servers over HTTPS, so a local install like the above isn't an option, and its connectors authenticate with OAuth or no authentication, [per OpenAI's documentation](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt). Our hosted server uses a shared key sent as an HTTP header, which ChatGPT doesn't send.
 
 Custom connectors also need Developer Mode (Settings → Apps → Advanced) and a paid plan.
 
@@ -169,18 +169,19 @@ npx @modelcontextprotocol/inspector uvx --from git+https://github.com/HackerFund
 
 ### Hosted server (Google Cloud Run)
 
-> **Not up yet.** The organizers will publish the URL and the shared key before the event, and this section will be filled in. Until then, use one of the local options above. Deployment steps are in [docs/deploy.md](docs/deploy.md).
+Teams can use the hosted server instead of installing anything. It speaks streamable HTTP and needs the shared hackathon key on every request. The organizers hand out the key through the event channel.
 
-When it's live, teams will be able to use the hosted server instead of installing anything. It speaks streamable HTTP at `<URL>/mcp` and needs the shared key on every request.
+- **MCP endpoint:** `https://glendale-gis-mcp-1053589358088.us-west2.run.app/mcp`
+- **Key:** `Authorization: Bearer <key>` header (never in the URL)
+- **Health check (no key needed):** `curl https://glendale-gis-mcp-1053589358088.us-west2.run.app/health`
+- **Rate limit:** 120 requests a minute per key. Over that you get `429` with a `Retry-After` header.
 
-- **URL:** `https://TBD.run.app/mcp`
-- **Key:** shared at the event (`Authorization: Bearer <key>`)
-- **Health check (no key needed):** `curl https://TBD.run.app/health`
+A missing or wrong key returns `401`. If the hosted server is down, the local options above give you the same tools and data. Deployment steps are in [docs/deploy.md](docs/deploy.md).
 
 **Claude Code:**
 
 ```sh
-claude mcp add --transport http glendale-gis https://TBD.run.app/mcp \
+claude mcp add --transport http glendale-gis https://glendale-gis-mcp-1053589358088.us-west2.run.app/mcp \
   --header "Authorization: Bearer <key>"
 ```
 
@@ -190,7 +191,7 @@ claude mcp add --transport http glendale-gis https://TBD.run.app/mcp \
 {
   "mcpServers": {
     "glendale-gis": {
-      "httpUrl": "https://TBD.run.app/mcp",
+      "httpUrl": "https://glendale-gis-mcp-1053589358088.us-west2.run.app/mcp",
       "headers": { "Authorization": "Bearer <key>" }
     }
   }

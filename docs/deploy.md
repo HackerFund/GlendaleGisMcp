@@ -136,6 +136,13 @@ gcloud secrets delete glendale-gis-api-key
 
 ## Troubleshooting
 
+- **The first deploy fails with `PERMISSION_DENIED: Build failed because the default service account is missing required IAM permissions`:** new projects no longer give the default compute service account build rights. Grant them, then deploy again:
+
+  ```sh
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role=roles/cloudbuild.builds.builder --condition=None
+  ```
 - **The server won't start, and the logs say "Refusing to listen on 0.0.0.0 without an API key":** the secret isn't reaching the service. Check `--set-secrets` and the `secretAccessor` binding.
 - **Every request returns 421:** the `Host` header doesn't match `GLENDALE_GIS_HTTP_ALLOWED_HOSTS`. Set it to the service hostname without `https://`, or unset it.
 - **`/health` says `"status": "degraded"`:** read `detail` and `layers_unavailable`. The snapshot download may have failed, in which case the server may be serving older data with results marked `stale`.

@@ -83,3 +83,6 @@ Thumbs.db
 # Logs
 *.log
 /snapshot/
+
+# Local deployment notes (contain environment details; never committed)
+docs/*.local.md
