@@ -278,7 +278,7 @@ Pydantic models: `Location` (address or lat/lon), `Ref`, `Nearest`, `HazardResul
 - **`docs/deploy.md`:** setup, the deploy command, locking the Host header after the URL exists, checks, key rotation, publishing fresh data, shutdown and troubleshooting.
 - **Live check:** a real MCP client connected over HTTP with a bearer key, listed 12 tools and ran `hazards_at_location` and `geocode_address`. A wrong key and a missing key both returned 401; the rate limit returned 429 with `Retry-After`. Neither the key nor any address appeared in the logs.
 - **Tests:** 16 new, 339 in total.
-- **Deployed (September 20, 2026)** to Cloud Run in `us-west2` on a test GCP project: `https://glendale-gis-mcp-1053589358088.us-west2.run.app`. Build and deploy from source took 1m 45s. The organizers may move it to a production project before the event.
+- **Deployed (September 20, 2026)** to Cloud Run in `us-west2`: `https://glendale-gis-mcp-1053589358088.us-west2.run.app`. Build and deploy from source took 1m 45s. This is the instance used for the hackathon.
 - **Done-when check passed:** `/health` reported `ok` with all 20 layers and the downloaded snapshot. A missing and a wrong key both returned 401. A real MCP client listed 12 tools and 5 resources; `hazards_at_location` by address took 0.30 s and a live parcel query 0.81 s.
 - **Load test:** 300 requests in 3.7 s from a laptop. 119 answered and 181 were rate limited (the 120-a-minute budget), with no errors; p50 295 ms, p95 379 ms. 200 log lines held no key, address or coordinates.
 - **Gotcha:** new GCP projects don't give the default compute service account build rights, so the first `--source` deploy failed with `PERMISSION_DENIED`. The fix is in `docs/deploy.md`.
