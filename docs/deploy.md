@@ -119,12 +119,14 @@ To keep the old key working during a changeover, set `GLENDALE_GIS_API_KEYS` to 
 
 ## Publishing fresh data
 
-Rebuild and publish the snapshot, then restart the service so it picks up the new release:
+Rebuild and publish the snapshot, commit the new lock, then redeploy from source:
 
 ```sh
 python scripts/build_snapshot.py --publish     # then commit snapshot.lock.json
-gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars "REDEPLOYED_AT=$(date -u +%FT%TZ)"
+gcloud run deploy "$SERVICE" --source . --region "$REGION"
 ```
+
+A restart alone isn't enough: `snapshot.lock.json` is packaged into the build, so a restarted instance downloads the snapshot the old lock names. Redeploying keeps the service's existing settings. Check `/health` afterwards; `snapshot.built_at` should match the lock.
 
 ## Shutting down after the event
 
